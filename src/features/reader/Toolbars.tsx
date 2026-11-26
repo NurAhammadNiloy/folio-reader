@@ -52,7 +52,7 @@ export function TopBar({
   const set = store.getState().set;
   const toggle = (p: typeof panel) => set({ panel: panel === p ? null : p });
   return (
-    <header className="safe-pt z-20 flex flex-wrap items-center gap-1 border-b border-line bg-surface/95 px-2 py-1 backdrop-blur">
+    <header className="safe-pt z-20 flex items-center gap-0.5 border-b sm:gap-1 border-line bg-surface/95 px-2 py-1 backdrop-blur">
       {onBack && (
         <IconButton label="Back to library" onClick={onBack}>
           <ArrowLeft size={20} />
@@ -63,7 +63,7 @@ export function TopBar({
       <IconButton label="Contents" pressed={panel === 'outline'} onClick={() => toggle('outline')}>
         <List size={20} />
       </IconButton>
-      <IconButton label="Page thumbnails" pressed={panel === 'thumbs'} onClick={() => toggle('thumbs')} className="hidden sm:inline-flex">
+      <IconButton label="Page thumbnails" pressed={panel === 'thumbs'} onClick={() => toggle('thumbs')} className="max-sm:hidden">
         <LayoutGrid size={20} />
       </IconButton>
       <IconButton label="Search in book" pressed={panel === 'search'} onClick={() => toggle('search')}>
@@ -92,7 +92,7 @@ export function TopBar({
         <PenLine size={20} />
       </IconButton>
       {onStudy && (
-        <IconButton label="Study with notebook" onClick={onStudy}>
+        <IconButton label="Study with notebook" onClick={onStudy} className="max-sm:hidden">
           <NotebookPen size={20} />
         </IconButton>
       )}
@@ -111,6 +111,7 @@ export function TopBar({
           { label: 'Rotate view', icon: <RotateCw size={16} />, onSelect: () => set({ rotation: (((store.getState().rotation + 90) % 360) as 0 | 90 | 180 | 270) }) },
           { label: 'Pages', icon: <LayoutGrid size={16} />, onSelect: () => toggle('thumbs') },
           { label: 'Bookmarks', icon: <Bookmark size={16} />, onSelect: () => toggle('bookmarks') },
+          ...(onStudy ? [{ label: 'Study with notebook', icon: <NotebookPen size={16} />, onSelect: onStudy }] : []),
           'sep',
           ...moreItems,
         ]}

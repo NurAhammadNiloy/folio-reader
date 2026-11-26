@@ -294,7 +294,8 @@ function NotebookPageView(p: {
             className="inline-flex min-h-11 items-center gap-1 rounded-lg px-2 hover:bg-surface"
             onClick={() => p.onSave({ ...page, link: { bookId: p.linkedBookId!, pageIndex: p.currentBookPage! } })}
           >
-            <Link2 size={14} aria-hidden /> Link to book {p.linkedBookId && formats.get(p.linkedBookId) === 'epub' ? 'section' : 'page'} {p.currentBookLabel ?? p.currentBookPage + 1}
+            <Link2 size={14} aria-hidden /> Link to book {p.linkedBookId && formats.get(p.linkedBookId) === 'epub' ? 'section' : 'page'} {p.currentBookPage + 1}
+            {p.currentBookLabel && p.currentBookLabel !== String(p.currentBookPage + 1) && <span className="text-muted">(printed {p.currentBookLabel})</span>}
           </button>
         )}
         {link && !p.readOnly && (

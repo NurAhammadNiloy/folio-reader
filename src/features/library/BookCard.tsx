@@ -91,11 +91,18 @@ export function BookCard({
       <Link to={`/reader/${book.id}`} className="block rounded-md" aria-label={`Open ${book.title}`}>
         <Cover book={book} className="aspect-[3/4] w-full transition-transform group-hover:-translate-y-0.5" />
       </Link>
-      <div className="mt-2 flex items-start gap-1">
-        <div className="min-w-0 flex-1">
-          <h3 className="line-clamp-2 text-sm font-semibold leading-snug">{book.title}</h3>
-          {book.author && <p className="truncate text-xs text-muted">{book.author}</p>}
-          <p className="mt-0.5 text-xs text-muted">
+      {/* Title and author use the full card width; the actions sit beside the details below. */}
+      <h3 className="mt-2 line-clamp-2 text-sm font-semibold leading-snug" title={book.title}>
+        {book.title}
+      </h3>
+      {book.author && (
+        <p className="truncate text-xs text-muted" title={book.author}>
+          {book.author}
+        </p>
+      )}
+      <div className="flex items-start gap-0.5">
+        <div className="min-w-0 flex-1 pt-0.5">
+          <p className="text-xs text-muted">
             {book.format === 'epub' ? `EPUB · ${formatBytes(book.fileSize)} · ${book.pageCount} sections` : `PDF · ${formatBytes(book.fileSize)} · ${book.pageCount} pp`}
           </p>
           <p className="text-xs text-muted">{positionText(book, progress)}</p>
