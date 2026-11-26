@@ -404,3 +404,34 @@ dialog {
 .reduce-motion .epub-turn {
   transition: none;
 }
+
+/* Prefetched pages render off screen in the same row, so they keep their canvas when turned to. */
+.folio-prefetch {
+  position: fixed !important;
+  left: -99999px;
+  top: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+/* Page turn (RDR-06): see src/features/reader/pageTurn.ts */
+.folio-turn-stage {
+  position: fixed;
+  z-index: 15;
+  pointer-events: none;
+  perspective: 1800px;
+}
+.folio-turn-leaf {
+  position: absolute;
+  inset: 0;
+  transform-style: preserve-3d;
+  backface-visibility: hidden;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.18);
+  overflow: hidden;
+}
+.folio-turn-sheen,
+.folio-turn-cast {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}

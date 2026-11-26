@@ -55,6 +55,9 @@ test.describe('reader (RDR-01..03, RDR-05, PRG-01)', () => {
   test('scanned pages show a no-text notice', async ({ page }) => {
     await open(page, 'scanned.pdf', /Open Folio Scanned Fixture/);
     await expect(page.getByTestId('no-text-notice')).toBeVisible();
+    // Dismissed once, it stays out of the way for the rest of the book session.
+    await page.getByTestId('no-text-notice').getByRole('button', { name: 'Got it' }).click();
+    await expect(page.getByTestId('no-text-notice')).toBeHidden();
   });
 
   test('view modes: spread, scroll, zoom and rotation keep the position', async ({ page }) => {
@@ -62,13 +65,32 @@ test.describe('reader (RDR-01..03, RDR-05, PRG-01)', () => {
     await page.getByRole('button', { name: 'View and more' }).click();
     await page.getByRole('menuitem', { name: 'Two-page spread' }).click();
     await page.getByRole('button', { name: 'Next page' }).click();
-    await expect(page.getByTestId('visible-pages').locator('[data-page-index]').filter({ has: page.locator('canvas') })).toHaveCount(2);
+    await expect(page.getByTestId('visible-pages').locator('[data-page-index]:not(.folio-prefetch)').filter({ has: page.locator('canvas') })).toHaveCount(2);
     await page.getByRole('button', { name: 'View and more' }).click();
     await page.getByRole('menuitem', { name: 'Continuous scroll' }).click();
     await page.getByRole('button', { name: 'Zoom in' }).first().click();
     await page.getByRole('button', { name: 'View and more' }).click();
     await page.getByRole('menuitem', { name: 'Rotate view' }).click();
     await expect(page.getByTestId('page-indicator')).toContainText('2 / 12');
+  });
+
+  test('tablet portrait: a chosen spread shows one page, landscape shows two; panels sit beside the page', async ({ page }) => {
+    await page.setViewportSize({ width: 834, height: 1112 });
+    await open(page, 'text-12p.pdf', /Open Folio Sample Text/);
+    const shown = page.getByTestId('visible-pages').locator('[data-page-index]:not(.folio-prefetch)').filter({ has: page.locator('canvas') });
+    await page.getByRole('button', { name: 'View and more' }).click();
+    await page.getByRole('menuitem', { name: 'Two-page spread' }).click();
+    await page.getByRole('button', { name: 'Next page' }).click();
+    await expect(page.getByTestId('page-indicator')).toContainText('2 / 12');
+    await expect(shown).toHaveCount(1);
+    await page.setViewportSize({ width: 1112, height: 834 });
+    await expect(shown).toHaveCount(2);
+    // Wide reading area: the contents panel takes its own column instead of covering the page.
+    await page.setViewportSize({ width: 834, height: 1112 });
+    await page.getByRole('button', { name: 'Contents' }).click();
+    const panel = await page.getByRole('complementary', { name: 'Contents' }).boundingBox();
+    const pageBox = await shown.first().boundingBox();
+    expect(pageBox!.x).toBeGreaterThanOrEqual(panel!.x + panel!.width - 1);
   });
 
   test('RTL direction swaps arrow keys in paged views', async ({ page }) => {
@@ -132,6 +154,8 @@ test.describe('reader (RDR-01..03, RDR-05, PRG-01)', () => {
     await page.getByLabel('Go to page').press('Enter');
     await expect(page.getByTestId('page-indicator')).toContainText('4 · 6 / 12');
     await page.getByRole('button', { name: 'Bookmark this page' }).click();
+    // The toggle flips from the stored record, so the write has committed before we reload.
+    await expect(page.getByRole('button', { name: 'Remove bookmark for this page' })).toBeVisible();
     await page.reload();
     await expect(page.getByTestId('page-indicator')).toContainText('4 · 6 / 12');
     await page.getByRole('button', { name: 'View and more' }).click();
@@ -163,5 +187,22 @@ test.describe('reader (RDR-01..03, RDR-05, PRG-01)', () => {
     await expect(page.getByTestId('page-indicator')).toContainText('2 / 12');
     await swipe(mid - 120, mid + 120);
     await expect(page.getByTestId('page-indicator')).toContainText('1 / 12');
+  });
+  test('page turn reuses the prefetched canvas and plays the turning-page motion (D18, RDR-06)', async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: 'no-preference' });
+    await open(page, 'text-12p.pdf', /Open Folio Sample Text/);
+    const next = page.locator('[data-page-index="1"].folio-prefetch canvas.page-canvas');
+    await expect(next).toHaveCount(1);
+    await next.evaluate((c) => ((c as HTMLCanvasElement & { __mark?: number }).__mark = 42));
+    await page.keyboard.press('ArrowRight');
+    await expect(page.locator('.folio-turn-stage')).toHaveCount(1);
+    const shown = page.locator('[data-page-index="1"]:not(.folio-prefetch) canvas.page-canvas');
+    expect(await shown.evaluate((c) => (c as HTMLCanvasElement & { __mark?: number }).__mark)).toBe(42);
+    await expect(page.locator('.folio-turn-stage')).toHaveCount(0);
+    // Reduced motion: no turning page.
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await page.keyboard.press('ArrowRight');
+    await expect(page.getByTestId('page-indicator')).toContainText('3 / 12');
+    expect(await page.locator('.folio-turn-stage').count()).toBe(0);
   });
 });

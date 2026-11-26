@@ -27,7 +27,7 @@ export function PanelFrame({ title, onClose, children }: { title: string; onClos
   return (
     <aside
       aria-label={title}
-      className="absolute inset-y-0 left-0 z-30 flex w-[min(340px,100%)] flex-col border-r border-line bg-surface shadow-xl"
+      className="absolute inset-y-0 left-0 z-30 flex w-[min(340px,100%)] flex-col border-r border-line bg-surface shadow-xl @2xl:relative @2xl:inset-auto @2xl:order-first @2xl:w-[300px] @2xl:flex-none @2xl:shadow-none"
       onKeyDown={(e) => {
         if (e.key === 'Escape') {
           e.stopPropagation();
@@ -188,6 +188,15 @@ export function SearchPanel({ doc, store, onClose }: { doc: PDFDocumentProxy; st
   const runId = useRef(0);
   const input = useRef<HTMLInputElement>(null);
   useEffect(() => input.current?.focus(), []);
+  // Closing the panel stops a running search, so it cannot jump the reader later.
+  useEffect(
+    () => () => {
+      runId.current++;
+      const cur = store.getState().search;
+      if (cur.running) store.getState().set({ search: { ...cur, running: false } });
+    },
+    [store],
+  );
 
   async function run(query: string) {
     const id = ++runId.current;

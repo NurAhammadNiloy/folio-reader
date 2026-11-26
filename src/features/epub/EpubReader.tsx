@@ -34,6 +34,8 @@ import { useReader, type ReaderStore } from '../reader/readerStore';
 import { useReadingTracking } from '../reader/useReadingTracking';
 import type { Visibility } from '../reader/ReaderView';
 import { downloadOriginal } from '../export/bookActions';
+import { storedBlob } from '../../core/storage/types';
+import { playPageTurn } from '../reader/pageTurn';
 
 type LoadState =
   | { kind: 'loading' }
@@ -52,7 +54,7 @@ function useEpubDocument(bookId: string, store: ReaderStore): LoadState {
       if (!book) return setState({ kind: 'not-found' });
       const file = await LibraryRepository.getFile(bookId);
       if (!file) return setState({ kind: 'missing-file', book });
-      const bytes = new Uint8Array(await file.blob.arrayBuffer());
+      const bytes = new Uint8Array(await storedBlob(file.blob, file.mime).arrayBuffer());
       if ((await sha256Hex(bytes)) !== book.hash) return setState({ kind: 'corrupt', book, detail: 'The stored file does not match its checksum.' });
       const { parseEpub, EpubHandle: Handle } = await import('../../core/documents/epubEngine');
       let parsed;
@@ -175,8 +177,21 @@ function ReadyEpub({
   const margin = (box.w && box.w < 600 ? PHONE_MARGINS : MARGINS)[typo.margin];
   const paged = typo.layout === 'paged';
   const twoUp = paged && box.w >= 1000 && box.w > box.h;
-  const colW = Math.max(200, twoUp ? (box.w - 2 * margin - GAP_FACTOR * margin) / 2 : box.w - 2 * margin);
-  const step = box.w - 2 * margin + GAP_FACTOR * margin; // one screen of columns
+  // Comfortable measure: columns stop growing at about 34 em (roughly 65 to 75 characters),
+  // and the spare width becomes outer margin, as in a printed book.
+  const cols = twoUp ? 2 : 1;
+  const baseGap = GAP_FACTOR * margin;
+  const maxCol = Math.round(18 * (typo.size / 100) * 34);
+  const colW = Math.max(200, Math.min(maxCol, twoUp ? (box.w - 2 * margin - baseGap) / 2 : box.w - 2 * margin));
+  // The gap must be at least the outer margin, or the next page's column would peek in.
+  let side = (box.w - cols * colW - (cols - 1) * baseGap) / 2;
+  let gap = baseGap;
+  if (side > baseGap) {
+    side = (box.w - cols * colW) / (cols + 1);
+    gap = side;
+  }
+  side = Math.max(margin, side);
+  const step = cols * (colW + gap); // one screen of columns
 
   useLayoutEffect(() => {
     const el = view.current;
@@ -203,10 +218,10 @@ function ReadyEpub({
       setPageCount(1);
       return;
     }
-    const count = Math.max(1, Math.round((el.scrollWidth + GAP_FACTOR * margin) / step));
+    const count = Math.max(1, Math.round((el.scrollWidth + gap) / step));
     setPageCount(count);
     return count;
-  }, [box.w, paged, step, margin]);
+  }, [box.w, paged, step, gap]);
 
   const land = useCallback(() => {
     const el = content.current;
@@ -262,24 +277,67 @@ function ReadyEpub({
     },
     [land, n, store],
   );
+  // Turning-page motion: snapshot the visible page(s) and lift the leaf over the new page.
+  const curl = paged && !reducedMotion && settings.pageTurn === 'curl';
+  const turnLeaf = useCallback(
+    (forward: boolean) => {
+      const v = view.current;
+      if (!curl || !v) return;
+      const r = v.getBoundingClientRect();
+      const leftward = forward !== rtl;
+      let rect = r;
+      let shift = 0;
+      if (twoUp) {
+        const half = r.width / 2;
+        rect = new DOMRect(leftward ? r.left + half : r.left, r.top, half, r.height);
+        shift = leftward ? -half : 0;
+      }
+      const wrap = document.createElement('div');
+      wrap.style.overflow = 'hidden';
+      const bgHost = v.closest<HTMLElement>('[data-testid="epub-reader"]') ?? v;
+      wrap.style.background = getComputedStyle(bgHost).backgroundColor;
+      const clone = v.cloneNode(true) as HTMLElement;
+      for (const el of [clone, ...clone.querySelectorAll<HTMLElement>('[id], [data-testid]')]) {
+        el.removeAttribute('id');
+        el.removeAttribute('data-testid');
+      }
+      Object.assign(clone.style, { position: 'absolute', left: `${shift}px`, top: '0', width: `${r.width}px`, height: `${r.height}px`, margin: '0' });
+      wrap.append(clone);
+      playPageTurn(wrap, rect, leftward ? 'left' : 'right');
+    },
+    [curl, rtl, twoUp],
+  );
+
   const next = useCallback(() => {
-    if (paged && pageRef.current < pageCountRef.current - 1) setPage((p) => p + 1);
-    else if (paged) goChapter(spine + 1);
-    else {
+    if (paged && pageRef.current < pageCountRef.current - 1) {
+      turnLeaf(true);
+      setPage((p) => p + 1);
+    } else if (paged) {
+      if (spine + 1 < n) {
+        turnLeaf(true);
+        goChapter(spine + 1);
+      }
+    } else {
       const v = view.current!;
       if (v.scrollTop + v.clientHeight >= v.scrollHeight - 4) goChapter(spine + 1);
       else v.scrollTop = Math.min(v.scrollHeight - v.clientHeight, v.scrollTop + v.clientHeight * 0.9);
     }
-  }, [goChapter, paged, spine]);
+  }, [goChapter, paged, spine, n, turnLeaf]);
   const prev = useCallback(() => {
-    if (paged && pageRef.current > 0) setPage((p) => p - 1);
-    else if (paged) goChapter(spine - 1, { last: true });
-    else {
+    if (paged && pageRef.current > 0) {
+      turnLeaf(false);
+      setPage((p) => p - 1);
+    } else if (paged) {
+      if (spine > 0) {
+        turnLeaf(false);
+        goChapter(spine - 1, { last: true });
+      }
+    } else {
       const v = view.current!;
       if (v.scrollTop <= 4) goChapter(spine - 1, { last: true });
       else v.scrollTop = Math.max(0, v.scrollTop - v.clientHeight * 0.9);
     }
-  }, [goChapter, paged, spine]);
+  }, [goChapter, paged, spine, turnLeaf]);
 
   // External navigation requests (study pane, notebook links) arrive through the store.
   const lastNav = useRef(nav?.seq ?? 0);
@@ -454,7 +512,7 @@ function ReadyEpub({
   return (
     <div className="relative flex h-full flex-col bg-[var(--reader-bg)]" data-testid="epub-reader">
       {showChrome && (
-        <header className="safe-pt z-20 flex items-center gap-1 border-b border-line bg-surface/95 px-2 py-1 backdrop-blur">
+        <header className="safe-pt z-20 flex items-center gap-0.5 border-b border-line bg-surface/95 px-2 py-1 backdrop-blur sm:gap-1">
           {onBack && (
             <IconButton label="Back to library" onClick={onBack}>
               <ArrowLeft size={20} />
@@ -475,7 +533,7 @@ function ReadyEpub({
             <Type size={20} />
           </IconButton>
           {onStudy && (
-            <IconButton label="Study with notebook" onClick={onStudy}>
+            <IconButton label="Study with notebook" onClick={onStudy} className="max-sm:hidden">
               <NotebookPen size={20} />
             </IconButton>
           )}
@@ -484,6 +542,7 @@ function ReadyEpub({
             trigger={<MoreHorizontal size={20} />}
             items={[
               { label: 'Bookmarks', icon: <Bookmark size={16} />, onSelect: () => setPanel('bookmarks') },
+              ...(onStudy ? [{ label: 'Study with notebook', icon: <NotebookPen size={16} />, onSelect: onStudy }] : []),
               { label: paged ? 'Scroll instead of pages' : 'Turn pages instead of scrolling', onSelect: () => setTypo({ layout: paged ? 'scroll' : 'paged' }) },
               'sep',
               { label: 'Download original EPUB', onSelect: () => void downloadOriginal(book).catch((e) => toast({ kind: 'error', message: errorMessage(e) })) },
@@ -496,7 +555,7 @@ function ReadyEpub({
         <div
           ref={view}
           className={cx('absolute inset-0', paged ? 'overflow-hidden' : 'overflow-y-auto')}
-          style={{ paddingInline: paged ? margin : 0, touchAction: paged ? 'pan-y pinch-zoom' : 'pan-y pinch-zoom' }}
+          style={{ paddingInline: paged ? side : 0, touchAction: paged ? 'pan-y pinch-zoom' : 'pan-y pinch-zoom' }}
           onScroll={paged ? undefined : (e) => {
             const v = e.currentTarget;
             scheduleSave();
@@ -520,7 +579,7 @@ function ReadyEpub({
             lang={handle.book.meta.language || undefined}
             dir={rtl ? 'rtl' : undefined}
             data-testid="epub-content"
-            className={cx('epub-content', typo.justify && 'epub-justify', !reducedMotion && paged && 'epub-turn')}
+            className={cx('epub-content', typo.justify && 'epub-justify', !reducedMotion && paged && !curl && 'epub-turn')}
             onClick={onContentClick}
             onKeyDown={onKeyActivate}
             style={{
@@ -531,7 +590,7 @@ function ReadyEpub({
                 ? {
                     height: box.h,
                     columnWidth: colW,
-                    columnGap: GAP_FACTOR * margin,
+                    columnGap: gap,
                     columnFill: 'auto',
                     paddingBlock: 32,
                     transform: `translateX(${translate}px)`,

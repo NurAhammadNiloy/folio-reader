@@ -4,6 +4,26 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { freshApp, importAndWait, importFiles, watchPage } from './helpers';
 
+async function storedSetting(page: import('@playwright/test').Page, key: string) {
+  return page.evaluate(
+    (k) =>
+      new Promise<unknown>((resolve, reject) => {
+        const open = indexedDB.open('folio');
+        open.onerror = () => reject(open.error);
+        open.onsuccess = () => {
+          const db = open.result;
+          const get = db.transaction('settings').objectStore('settings').get(k);
+          get.onsuccess = () => {
+            resolve((get.result as { value?: unknown } | undefined)?.value ?? null);
+            db.close();
+          };
+          get.onerror = () => reject(get.error);
+        };
+      }),
+    key,
+  );
+}
+
 const indicator = (page: import('@playwright/test').Page) => page.getByTestId('epub-page-indicator');
 const content = (page: import('@playwright/test').Page) => page.getByTestId('epub-content');
 
@@ -85,6 +105,8 @@ test.describe('EPUB (RDR-04)', () => {
     await page.getByRole('button', { name: 'Sans' }).click();
     await page.getByRole('button', { name: 'Scroll' }).click();
     await expect(indicator(page)).not.toContainText('Page ');
+    // Reload only after the setting has reached IndexedDB (an in-flight write can be cut off by navigation).
+    await expect.poll(() => storedSetting(page, 'epubTypography')).toMatchObject({ layout: 'scroll', font: 'sans', size: 120 });
     await page.reload();
     await expect(content(page)).toContainText('Chapter One');
     expect(await size()).toBeGreaterThan(before * 1.15);

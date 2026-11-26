@@ -44,8 +44,14 @@ export default defineConfig({
       devOptions: { enabled: false },
     }),
   ],
+  resolve: {
+    // PDF.js's modern build calls APIs that only the newest browsers have (Promise.try,
+    // Map#getOrInsertComputed, Math.sumPrecise), so it fails on iPadOS 17/18 WebKit.
+    // The legacy build ships the same engine with polyfills.
+    alias: [{ find: /^pdfjs-dist$/, replacement: 'pdfjs-dist/legacy/build/pdf.mjs' }],
+  },
   build: {
-    target: 'es2022',
+    target: ['es2022', 'safari16'],
     chunkSizeWarningLimit: 1600,
   },
   worker: { format: 'es' },

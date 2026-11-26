@@ -5,6 +5,7 @@ import { trackWrite } from './writeTracker';
 import { BackupError } from '../export/backupError';
 import type { BackupBundle, ExportInput } from '../export/backupFormat';
 import type { BookRecord } from './types';
+import { storedBlob } from './types';
 
 export type RestoreMode = 'empty' | 'append' | 'replace';
 
@@ -37,13 +38,13 @@ export const BackupRepository = {
       const files = new Map<string, Blob>();
       for (const f of await db.bookFiles.bulkGet([...ids])) {
         if (!f) throw new BackupError('invalid', 'An original PDF is missing from this device, so the backup cannot be complete.');
-        files.set(f.bookId, f.blob);
+        files.set(f.bookId, storedBlob(f.blob, f.mime));
       }
       const covers = new Map<string, { bookId: string; blob: Blob }>();
       for (const b of books) {
         if (!b.coverId) continue;
         const c = await db.covers.get(b.coverId);
-        if (c) covers.set(c.id, { bookId: b.id, blob: c.blob });
+        if (c) covers.set(c.id, { bookId: b.id, blob: storedBlob(c.blob, c.type ?? 'image/webp') });
       }
       const coverless = books.map((b) => (b.coverId && !covers.has(b.coverId) ? { ...b, coverId: null } : b));
       return {
@@ -136,11 +137,11 @@ export const BackupRepository = {
           for (const [bookId, bytes] of bundle.files) {
             const book = d.books.find((b) => b.id === bookId)!;
             const mime = book.format === 'epub' ? 'application/epub+zip' : 'application/pdf';
-            await db.bookFiles.add({ bookId, blob: new Blob([bytes as Uint8Array<ArrayBuffer>], { type: mime }), mime, size: bytes.length, checksum: book.hash });
+            await db.bookFiles.add({ bookId, blob: copyBuffer(bytes), mime, size: bytes.length, checksum: book.hash });
           }
           for (const c of d.covers) {
             const cov = bundle.covers.get(c.id)!;
-            await db.covers.add({ id: c.id, bookId: c.bookId, blob: new Blob([cov.bytes as Uint8Array<ArrayBuffer>], { type: cov.type }) });
+            await db.covers.add({ id: c.id, bookId: c.bookId, blob: copyBuffer(cov.bytes), type: cov.type });
           }
           await db.collections.bulkPut(d.collections);
           await db.memberships.bulkPut(d.memberships);
@@ -159,3 +160,8 @@ export const BackupRepository = {
     });
   },
 };
+
+/** An ArrayBuffer holding exactly these bytes (a view may sit inside a larger buffer). */
+function copyBuffer(bytes: Uint8Array): ArrayBuffer {
+  return bytes.slice().buffer as ArrayBuffer;
+}

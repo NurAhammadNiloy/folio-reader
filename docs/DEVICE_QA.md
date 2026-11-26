@@ -22,7 +22,9 @@ Mark each step **Pass**, **Fail** (with what happened, plus a screenshot or scre
 
 ## 2. Import
 1. Import `text-12p.pdf` and `geometry.pdf` from Files. Each import shows "Added to library".
-2. Import `malformed.pdf`, `not-a-pdf.pdf` and an EPUB. Each shows a clear error, and no card is created.
+2. Import `malformed.pdf`, `not-a-pdf.pdf` and `drm.epub`. Each shows a clear error, and no card is created.
+3a. Import `sample.epub` and `rtl.epub`. Each shows "Added to library" with a cover or title card.
+3b. In a **Private** Safari tab, import `text-12p.pdf`. It must import (WebKit refuses Blobs in IndexedDB there; Folio stores raw bytes to avoid that).
 3. Import `encrypted.pdf` (password `folio-test`). A wrong password says so. The right one imports.
 4. Import a large real PDF of your own (do not share it). It imports, or shows the 100 MB limit message.
 5. (iPad with keyboard and trackpad, or a desktop browser) Drag a PDF onto the library. It imports.
@@ -34,6 +36,16 @@ Mark each step **Pass**, **Fail** (with what happened, plus a screenshot or scre
 4. Swipe to turn pages in single mode. While in pen mode, swipes **draw** and do not turn pages.
 5. Search for `zephyr7`. It jumps to page "5 · 7" and the match is highlighted.
 6. Use the outline, thumbnails, page jump and bookmarks.
+
+## 3E. EPUB reading
+1. Open `sample.epub`. Tap the right and left edges and swipe to turn pages. The page indicator updates and no text is cut off between pages.
+2. Landscape iPad: two pages side by side. Portrait: one page.
+3. Text settings: change size, font, line spacing, margins, alignment and theme. The layout reflows and the position is kept. Relaunch: the settings persist.
+4. Switch to Scroll layout and back to Pages.
+5. Contents → Chapter Three. The internal link "Jump to the later section" in chapter one lands on it.
+6. The external link asks before opening Safari. Cancel does nothing.
+7. Search for `quasar2`, add a bookmark, relaunch: the reader resumes there.
+8. Open `rtl.epub`: the page turns from right to left.
 
 ## 4. Apple Pencil and finger ink (the main release gate)
 1. Pen mode: write a sentence with the Pencil. Strokes follow the tip with no visible lag, and pressure changes the width.

@@ -13,6 +13,7 @@ import { Button, IconButton, Menu, cx, download, safeFileName } from '../../comp
 import { errorMessage, useApp } from '../../app/appStore';
 import type { InkStyle, NotebookPageRecord, NotebookRecord, NotebookStroke, NotebookTemplate, StrokePoint, TextBlock } from '../../core/storage/types';
 import type { SaveStatus } from '../ink/useBookInk';
+import { activePane, setActivePane } from './activePane';
 
 type NbTool = 'select' | 'draw' | 'erase' | 'text';
 type Item = { pageId: string; stroke: NotebookStroke };
@@ -56,6 +57,23 @@ export function NotebookPane({
     return () => ro.disconnect();
   }, []);
   useEffect(() => history.current.reset(), [notebook.id]);
+  // Ctrl/Cmd+Z and Shift+Ctrl/Cmd+Z undo and redo in the notebook while it is the pane in use.
+  const keyActions = useRef({ undo: () => {}, redo: () => {} });
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (activePane() !== 'notebook' || !(e.ctrlKey || e.metaKey) || e.key.toLowerCase() !== 'z') return;
+      const t = e.target as HTMLElement;
+      if (t.closest('input, textarea, [contenteditable="true"], dialog[open]')) return; // native text undo
+      e.preventDefault();
+      if (e.shiftKey) keyActions.current.redo();
+      else keyActions.current.undo();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      setActivePane('book');
+    };
+  }, []);
 
   // Local optimistic copies until the DB reflects them.
   const view = useMemo(() => (pages ?? []).map((p) => {
@@ -127,8 +145,15 @@ export function NotebookPane({
     }
   }
 
+  keyActions.current = { undo: () => void undo(), redo: () => void redo() };
+
   return (
-    <div className="flex h-full min-h-0 flex-col bg-surface-2" data-testid="notebook">
+    <div
+      className="flex h-full min-h-0 flex-col bg-surface-2"
+      data-testid="notebook"
+      onPointerDownCapture={() => setActivePane('notebook')}
+      onFocusCapture={() => setActivePane('notebook')}
+    >
       <div className="flex flex-wrap items-center gap-1 border-b border-line bg-surface px-2 py-1" role="toolbar" aria-label="Notebook tools">
         <IconButton label="Select and scroll" pressed={tool === 'select'} onClick={() => setTool('select')}>
           <MousePointer2 size={18} />
@@ -269,7 +294,8 @@ function NotebookPageView(p: {
             className="inline-flex min-h-11 items-center gap-1 rounded-lg px-2 hover:bg-surface"
             onClick={() => p.onSave({ ...page, link: { bookId: p.linkedBookId!, pageIndex: p.currentBookPage! } })}
           >
-            <Link2 size={14} aria-hidden /> Link to book {p.linkedBookId && formats.get(p.linkedBookId) === 'epub' ? 'section' : 'page'} {p.currentBookLabel ?? p.currentBookPage + 1}
+            <Link2 size={14} aria-hidden /> Link to book {p.linkedBookId && formats.get(p.linkedBookId) === 'epub' ? 'section' : 'page'} {p.currentBookPage + 1}
+            {p.currentBookLabel && p.currentBookLabel !== String(p.currentBookPage + 1) && <span className="text-muted">(printed {p.currentBookLabel})</span>}
           </button>
         )}
         {link && !p.readOnly && (

@@ -49,6 +49,7 @@ export function InkLayer(p: InkLayerProps) {
   const erasing = useRef<Set<string>>(new Set());
   const raf = useRef(0);
   const lastCheckpoint = useRef(0);
+  const checkpointed = useRef(false);
   const panFinger = useRef<{ id: number; x: number; y: number } | null>(null);
   const touches = useRef(new Set<number>());
   const props = useRef(p);
@@ -79,9 +80,19 @@ export function InkLayer(p: InkLayerProps) {
     }
   };
 
-  useLayoutEffect(repaintCommitted);
+  // Repaint only when what is drawn changes, not on every parent render.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useLayoutEffect(repaintCommitted, [p.strokes, p.transform, p.width, p.height, dpr]);
 
-  useEffect(() => () => cancelAnimationFrame(raf.current), []);
+  // Free both backing stores on unmount (pages leaving the render window).
+  useEffect(() => {
+    const a = committed.current;
+    const b = live.current;
+    return () => {
+      cancelAnimationFrame(raf.current);
+      for (const c of [a, b]) if (c) c.width = c.height = 0;
+    };
+  }, []);
 
   const paintLive = () => {
     raf.current = 0;
@@ -107,6 +118,9 @@ export function InkLayer(p: InkLayerProps) {
     props.current.onStrokeActive(false);
     schedule();
     if (commit && pts.length) props.current.onCommit(pts, props.current.style);
+    // A cancelled stroke is discarded, so its crash-recovery checkpoint must go too.
+    else if (checkpointed.current) props.current.onCheckpoint?.([], props.current.style);
+    checkpointed.current = false;
   };
 
   const eraseAt = (e: { clientX: number; clientY: number }) => {
@@ -187,6 +201,7 @@ export function InkLayer(p: InkLayerProps) {
     const now = performance.now();
     if (props.current.onCheckpoint && now - lastCheckpoint.current > 1000 && points.current.length > 20) {
       lastCheckpoint.current = now;
+      checkpointed.current = true;
       props.current.onCheckpoint(points.current.slice(), props.current.style);
     }
   };

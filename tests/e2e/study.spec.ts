@@ -46,3 +46,46 @@ test('phone layout uses tabs instead of a cramped split', async ({ page }) => {
   await page.getByRole('tab', { name: 'Notebook' }).click();
   await expect(page.getByRole('button', { name: 'Create a notebook' })).toBeVisible();
 });
+
+test('study: Ctrl+Z undoes in the pane last used, not always in the book', async ({ page }) => {
+  const counts = () =>
+    page.evaluate(async () => {
+      const req = indexedDB.open('folio');
+      const db: IDBDatabase = await new Promise((r) => (req.onsuccess = () => r(req.result)));
+      const get = <T,>(s: string) => new Promise<T[]>((r) => { const q = db.transaction(s).objectStore(s).getAll(); q.onsuccess = () => r(q.result as T[]); });
+      const anns = await get<unknown>('annotations');
+      const pages = await get<{ strokes: unknown[] }>('notebookPages');
+      db.close();
+      return { book: anns.length, notebook: pages.reduce((n, p) => n + p.strokes.length, 0) };
+    });
+  const stroke = async (b: { x: number; y: number }, dx: number, dy: number) => {
+    await page.mouse.move(b.x + dx, b.y + dy);
+    await page.mouse.down();
+    for (let i = 1; i <= 10; i++) await page.mouse.move(b.x + dx + i * 8, b.y + dy + (i % 2 ? 3 : -3));
+    await page.mouse.up();
+  };
+  await freshApp(page);
+  await importAndWait(page, 'text-12p.pdf');
+  await page.getByRole('button', { name: /More actions/ }).click();
+  await page.getByRole('menuitem', { name: 'Study with notebook' }).click();
+  await expect(page.locator('canvas.page-canvas').first()).toBeVisible();
+  await page.getByRole('button', { name: 'Create a notebook' }).click();
+  await page.getByRole('button', { name: 'Annotate with pen' }).click();
+  await stroke((await page.locator('.folio-page').first().boundingBox())!, 40, 120);
+  await expect.poll(counts).toEqual({ book: 1, notebook: 0 });
+  const nbPage = page.locator('[data-testid="notebook"] section .relative').first();
+  await stroke((await nbPage.boundingBox())!, 40, 100);
+  await expect.poll(counts).toEqual({ book: 1, notebook: 1 });
+  await page.keyboard.press('Control+z');
+  await expect.poll(counts).toEqual({ book: 1, notebook: 0 });
+  // Arrow keys typed while in the notebook do not turn the book's page.
+  const before = await page.getByTestId('page-indicator').textContent();
+  await page.keyboard.press('ArrowRight');
+  await expect(page.getByTestId('page-indicator')).toHaveText(before!);
+  // Back in the book, Ctrl+Z undoes the book stroke.
+  // (focus a book control: tapping the page in pen mode would draw a dot)
+  await page.getByLabel('Go to page').focus();
+  await page.keyboard.press('Tab');
+  await page.keyboard.press('Control+z');
+  await expect.poll(counts).toEqual({ book: 0, notebook: 0 });
+});

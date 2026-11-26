@@ -39,6 +39,10 @@ export interface ReaderState {
   search: { query: string; hits: SearchHit[]; active: number; running: boolean; scanned: number };
   noText: Record<number, boolean>;
   turnDir: 1 | -1;
+  /** The reading area is taller than wide: a chosen spread shows one page (like a book held upright). */
+  portrait: boolean;
+  /** The reader dismissed the scanned-page notice for this book session. */
+  noTextAck: boolean;
 }
 
 export interface ReaderActions {
@@ -56,6 +60,11 @@ export interface ReaderActions {
 }
 
 export type ReaderStore = StoreApi<ReaderState & ReaderActions>;
+
+/** Spread view is chosen and the reading area is wide enough to show two pages. */
+export function showsSpread(s: Pick<ReaderState, 'viewMode' | 'portrait'>) {
+  return s.viewMode === 'spread' && !s.portrait;
+}
 
 /** Indexes shown together in spread view for a given page. */
 export function spreadFor(i: number, n: number, coverAlone: boolean): number[] {
@@ -93,6 +102,8 @@ export function createReaderStore(): ReaderStore {
     search: { query: '', hits: [], active: -1, running: false, scanned: 0 },
     noText: {},
     turnDir: 1,
+    portrait: false,
+    noTextAck: false,
 
     init: (numPages, first, prefs, direction) => {
       const pages: (PageDescriptor | null)[] = new Array(numPages).fill(null);
@@ -131,14 +142,14 @@ export function createReaderStore(): ReaderStore {
     },
     next: () => {
       const s = get();
-      if (s.viewMode === 'spread') {
+      if (showsSpread(s)) {
         const sp = spreadFor(s.current, s.numPages, s.coverAlone);
         s.goTo(sp[sp.length - 1]! + 1);
       } else s.goTo(s.current + 1);
     },
     prev: () => {
       const s = get();
-      if (s.viewMode === 'spread') {
+      if (showsSpread(s)) {
         const sp = spreadFor(s.current, s.numPages, s.coverAlone);
         const prevSpread = spreadFor(Math.max(0, sp[0]! - 1), s.numPages, s.coverAlone);
         s.goTo(prevSpread[0]!);

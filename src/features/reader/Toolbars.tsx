@@ -9,8 +9,12 @@ import { useReader, type ReaderStore } from './readerStore';
 import type { BookInk } from '../ink/useBookInk';
 import type { BookRecord } from '../../core/storage/types';
 
+/** Last effective scale published by the reader view (survives toolbar remounts). */
+let lastScale = 1;
+if (typeof window !== 'undefined') window.addEventListener('folio:scale', (e) => (lastScale = (e as CustomEvent<number>).detail));
+
 export function useEffectiveScale() {
-  const [scale, setScale] = useState(1);
+  const [scale, setScale] = useState(() => lastScale);
   useEffect(() => {
     const on = (e: Event) => setScale((e as CustomEvent<number>).detail);
     window.addEventListener('folio:scale', on);
@@ -48,7 +52,7 @@ export function TopBar({
   const set = store.getState().set;
   const toggle = (p: typeof panel) => set({ panel: panel === p ? null : p });
   return (
-    <header className="safe-pt z-20 flex flex-wrap items-center gap-1 border-b border-line bg-surface/95 px-2 py-1 backdrop-blur">
+    <header className="safe-pt z-20 flex items-center gap-0.5 border-b sm:gap-1 border-line bg-surface/95 px-2 py-1 backdrop-blur">
       {onBack && (
         <IconButton label="Back to library" onClick={onBack}>
           <ArrowLeft size={20} />
@@ -59,7 +63,7 @@ export function TopBar({
       <IconButton label="Contents" pressed={panel === 'outline'} onClick={() => toggle('outline')}>
         <List size={20} />
       </IconButton>
-      <IconButton label="Page thumbnails" pressed={panel === 'thumbs'} onClick={() => toggle('thumbs')} className="hidden sm:inline-flex">
+      <IconButton label="Page thumbnails" pressed={panel === 'thumbs'} onClick={() => toggle('thumbs')} className="max-sm:hidden">
         <LayoutGrid size={20} />
       </IconButton>
       <IconButton label="Search in book" pressed={panel === 'search'} onClick={() => toggle('search')}>
@@ -88,7 +92,7 @@ export function TopBar({
         <PenLine size={20} />
       </IconButton>
       {onStudy && (
-        <IconButton label="Study with notebook" onClick={onStudy}>
+        <IconButton label="Study with notebook" onClick={onStudy} className="max-sm:hidden">
           <NotebookPen size={20} />
         </IconButton>
       )}
@@ -107,6 +111,7 @@ export function TopBar({
           { label: 'Rotate view', icon: <RotateCw size={16} />, onSelect: () => set({ rotation: (((store.getState().rotation + 90) % 360) as 0 | 90 | 180 | 270) }) },
           { label: 'Pages', icon: <LayoutGrid size={16} />, onSelect: () => toggle('thumbs') },
           { label: 'Bookmarks', icon: <Bookmark size={16} />, onSelect: () => toggle('bookmarks') },
+          ...(onStudy ? [{ label: 'Study with notebook', icon: <NotebookPen size={16} />, onSelect: onStudy }] : []),
           'sep',
           ...moreItems,
         ]}
@@ -210,7 +215,7 @@ export function BottomBar({ store }: { store: ReaderStore }) {
   const n = useReader(store, (s) => s.numPages);
   const current = useReader(store, (s) => s.current);
   const labels = useReader(store, (s) => s.labels);
-  const noText = useReader(store, (s) => s.noText[s.current]);
+  const noText = useReader(store, (s) => s.noText[s.current] && !s.noTextAck);
   const rtl = useReader(store, (s) => s.direction === 'rtl');
   const strokeActive = useReader(store, (s) => s.strokeActive);
   const [jump, setJump] = useState('');
@@ -229,8 +234,11 @@ export function BottomBar({ store }: { store: ReaderStore }) {
   return (
     <footer className="safe-pb z-20 border-t border-line bg-surface/95 px-2 backdrop-blur">
       {noText && (
-        <p className="px-2 pt-1 text-center text-xs text-muted" data-testid="no-text-notice">
-          This page has no selectable text (it may be a scanned image), so it cannot be searched or selected.
+        <p className="flex items-center justify-center gap-2 px-2 pt-1 text-center text-xs text-muted" data-testid="no-text-notice">
+          <span>This page is a scanned image, so its text can’t be searched or selected.</span>
+          <button type="button" className="min-h-8 rounded-lg px-2 font-semibold text-accent hover:bg-surface-2" onClick={() => st.set({ noTextAck: true })}>
+            Got it
+          </button>
         </p>
       )}
       <div className="flex items-center gap-1 py-1" dir={rtl ? 'rtl' : 'ltr'}>

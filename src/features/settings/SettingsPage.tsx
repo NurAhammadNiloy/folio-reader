@@ -89,6 +89,7 @@ export function SettingsPage() {
       <Section title="Appearance" icon={<Info size={18} />}>
         <Select k="theme" label="Theme" options={[['system', 'Match system'], ['light', 'Light'], ['sepia', 'Sepia'], ['dark', 'Dark']]} />
         <Select k="reducedMotion" label="Motion" options={[['system', 'Match system'], ['reduce', 'Reduce motion'], ['allow', 'Allow motion']]} />
+        <Select k="pageTurn" label="Page turn" options={[['curl', 'Turning page'], ['slide', 'Slide']]} />
         <p className="text-xs text-muted">Themes change the app around the page. PDF pages are shown as the author made them.</p>
       </Section>
 
