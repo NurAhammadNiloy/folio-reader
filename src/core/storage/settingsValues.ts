@@ -4,6 +4,8 @@ export type FingerMode = 'navigate' | 'draw';
 export interface AppSettings {
   theme: ThemePref;
   reducedMotion: 'system' | 'reduce' | 'allow';
+  /** Page-turn motion when motion is allowed. */
+  pageTurn: 'curl' | 'slide';
   /** In drawing mode: does a finger draw or navigate? Pen always draws. */
   fingerInDrawMode: FingerMode;
   /** Seconds of continuous >=50% visibility before a page qualifies as viewed. */
@@ -45,6 +47,7 @@ export function normaliseTypography(v: unknown): EpubTypography {
 export const DEFAULT_SETTINGS: AppSettings = {
   theme: 'system',
   reducedMotion: 'system',
+  pageTurn: 'curl',
   fingerInDrawMode: 'navigate',
   qualifySeconds: 5,
   idleSeconds: 120,
@@ -71,6 +74,8 @@ export function sanitiseSetting(key: string, v: unknown): unknown {
       return THEMES.includes(v as ThemePref) ? v : undefined;
     case 'reducedMotion':
       return MOTION.includes(v as AppSettings['reducedMotion']) ? v : undefined;
+    case 'pageTurn':
+      return v === 'curl' || v === 'slide' ? v : undefined;
     case 'fingerInDrawMode':
       return FINGER.includes(v as FingerMode) ? v : undefined;
     case 'qualifySeconds':

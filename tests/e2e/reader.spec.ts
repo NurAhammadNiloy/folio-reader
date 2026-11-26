@@ -166,4 +166,21 @@ test.describe('reader (RDR-01..03, RDR-05, PRG-01)', () => {
     await swipe(mid - 120, mid + 120);
     await expect(page.getByTestId('page-indicator')).toContainText('1 / 12');
   });
+  test('page turn reuses the prefetched canvas and plays the turning-page motion (D18, RDR-06)', async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: 'no-preference' });
+    await open(page, 'text-12p.pdf', /Open Folio Sample Text/);
+    const next = page.locator('[data-page-index="1"].folio-prefetch canvas.page-canvas');
+    await expect(next).toHaveCount(1);
+    await next.evaluate((c) => ((c as HTMLCanvasElement & { __mark?: number }).__mark = 42));
+    await page.keyboard.press('ArrowRight');
+    await expect(page.locator('.folio-turn-stage')).toHaveCount(1);
+    const shown = page.locator('[data-page-index="1"]:not(.folio-prefetch) canvas.page-canvas');
+    expect(await shown.evaluate((c) => (c as HTMLCanvasElement & { __mark?: number }).__mark)).toBe(42);
+    await expect(page.locator('.folio-turn-stage')).toHaveCount(0);
+    // Reduced motion: no turning page.
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await page.keyboard.press('ArrowRight');
+    await expect(page.getByTestId('page-indicator')).toContainText('3 / 12');
+    expect(await page.locator('.folio-turn-stage').count()).toBe(0);
+  });
 });

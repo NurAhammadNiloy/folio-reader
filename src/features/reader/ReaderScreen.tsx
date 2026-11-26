@@ -340,6 +340,7 @@ function ReadyReader({
           ink={ink}
           fingerDraws={settings.fingerInDrawMode === 'draw'}
           reducedMotion={reducedMotion}
+          turnStyle={settings.pageTurn}
           visibilityRef={visibilityRef}
           onToggleChrome={() => store.getState().set({ chrome: !store.getState().chrome })}
         />

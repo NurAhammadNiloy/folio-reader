@@ -35,6 +35,7 @@ import { useReadingTracking } from '../reader/useReadingTracking';
 import type { Visibility } from '../reader/ReaderView';
 import { downloadOriginal } from '../export/bookActions';
 import { storedBlob } from '../../core/storage/types';
+import { playPageTurn } from '../reader/pageTurn';
 
 type LoadState =
   | { kind: 'loading' }
@@ -276,24 +277,67 @@ function ReadyEpub({
     },
     [land, n, store],
   );
+  // Turning-page motion: snapshot the visible page(s) and lift the leaf over the new page.
+  const curl = paged && !reducedMotion && settings.pageTurn === 'curl';
+  const turnLeaf = useCallback(
+    (forward: boolean) => {
+      const v = view.current;
+      if (!curl || !v) return;
+      const r = v.getBoundingClientRect();
+      const leftward = forward !== rtl;
+      let rect = r;
+      let shift = 0;
+      if (twoUp) {
+        const half = r.width / 2;
+        rect = new DOMRect(leftward ? r.left + half : r.left, r.top, half, r.height);
+        shift = leftward ? -half : 0;
+      }
+      const wrap = document.createElement('div');
+      wrap.style.overflow = 'hidden';
+      const bgHost = v.closest<HTMLElement>('[data-testid="epub-reader"]') ?? v;
+      wrap.style.background = getComputedStyle(bgHost).backgroundColor;
+      const clone = v.cloneNode(true) as HTMLElement;
+      for (const el of [clone, ...clone.querySelectorAll<HTMLElement>('[id], [data-testid]')]) {
+        el.removeAttribute('id');
+        el.removeAttribute('data-testid');
+      }
+      Object.assign(clone.style, { position: 'absolute', left: `${shift}px`, top: '0', width: `${r.width}px`, height: `${r.height}px`, margin: '0' });
+      wrap.append(clone);
+      playPageTurn(wrap, rect, leftward ? 'left' : 'right');
+    },
+    [curl, rtl, twoUp],
+  );
+
   const next = useCallback(() => {
-    if (paged && pageRef.current < pageCountRef.current - 1) setPage((p) => p + 1);
-    else if (paged) goChapter(spine + 1);
-    else {
+    if (paged && pageRef.current < pageCountRef.current - 1) {
+      turnLeaf(true);
+      setPage((p) => p + 1);
+    } else if (paged) {
+      if (spine + 1 < n) {
+        turnLeaf(true);
+        goChapter(spine + 1);
+      }
+    } else {
       const v = view.current!;
       if (v.scrollTop + v.clientHeight >= v.scrollHeight - 4) goChapter(spine + 1);
       else v.scrollTop = Math.min(v.scrollHeight - v.clientHeight, v.scrollTop + v.clientHeight * 0.9);
     }
-  }, [goChapter, paged, spine]);
+  }, [goChapter, paged, spine, n, turnLeaf]);
   const prev = useCallback(() => {
-    if (paged && pageRef.current > 0) setPage((p) => p - 1);
-    else if (paged) goChapter(spine - 1, { last: true });
-    else {
+    if (paged && pageRef.current > 0) {
+      turnLeaf(false);
+      setPage((p) => p - 1);
+    } else if (paged) {
+      if (spine > 0) {
+        turnLeaf(false);
+        goChapter(spine - 1, { last: true });
+      }
+    } else {
       const v = view.current!;
       if (v.scrollTop <= 4) goChapter(spine - 1, { last: true });
       else v.scrollTop = Math.max(0, v.scrollTop - v.clientHeight * 0.9);
     }
-  }, [goChapter, paged, spine]);
+  }, [goChapter, paged, spine, turnLeaf]);
 
   // External navigation requests (study pane, notebook links) arrive through the store.
   const lastNav = useRef(nav?.seq ?? 0);
@@ -535,7 +579,7 @@ function ReadyEpub({
             lang={handle.book.meta.language || undefined}
             dir={rtl ? 'rtl' : undefined}
             data-testid="epub-content"
-            className={cx('epub-content', typo.justify && 'epub-justify', !reducedMotion && paged && 'epub-turn')}
+            className={cx('epub-content', typo.justify && 'epub-justify', !reducedMotion && paged && !curl && 'epub-turn')}
             onClick={onContentClick}
             onKeyDown={onKeyActivate}
             style={{

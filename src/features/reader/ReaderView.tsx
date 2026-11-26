@@ -7,6 +7,7 @@ import { spreadFor, useReader, type ReaderStore } from './readerStore';
 import type { BookInk } from '../ink/useBookInk';
 import { ProgressRepository } from '../../core/storage/progressRepository';
 import type { PdfLocation } from '../../core/storage/types';
+import { playPageTurn, snapshotCanvases, type PageTurnStyle } from './pageTurn';
 
 export interface Visibility {
   /** page index -> { visible css px², page area, viewport area } */
@@ -24,6 +25,7 @@ export function ReaderView({
   ink,
   fingerDraws,
   reducedMotion,
+  turnStyle,
   visibilityRef,
   onToggleChrome,
 }: {
@@ -33,6 +35,7 @@ export function ReaderView({
   ink: BookInk;
   fingerDraws: boolean;
   reducedMotion: boolean;
+  turnStyle: PageTurnStyle;
   visibilityRef: React.MutableRefObject<Visibility>;
   onToggleChrome: () => void;
 }) {
@@ -308,9 +311,36 @@ export function ReaderView({
     const el = turnRow.current;
     if (!el || reducedMotion || typeof el.animate !== 'function') return;
     const st = store.getState();
-    const from = (st.turnDir === 1) !== (st.direction === 'rtl') ? 14 : -14;
+    const leftward = (st.turnDir === 1) !== (st.direction === 'rtl'); // the leaf travels to the left
+    const prev = lastShot.current;
+    const newSpread = spreadKey.split('-').map(Number);
+    const adjacent = prev && prev.pages.length > 0 && Math.abs(prev.pages[0]!.idx - newSpread[0]!) <= 2;
+    if (turnStyle === 'curl' && prev && adjacent) {
+      // Forward in a left-to-right book: the right-hand outgoing page lifts around its left edge.
+      const ordered = [...prev.pages].sort((a, b) => a.rect.left - b.rect.left);
+      const leaf = leftward ? ordered[ordered.length - 1]! : ordered[0]!;
+      const pageEl = el.querySelector<HTMLElement>(`[data-page-index="${leaf.idx}"]`);
+      const snap = pageEl && snapshotCanvases(pageEl, leaf.rect, leaf.rect);
+      if (snap) {
+        playPageTurn(snap, leaf.rect, leftward ? 'left' : 'right');
+        return;
+      }
+    }
+    const from = leftward ? 14 : -14;
     el.animate([{ opacity: 0.35, transform: `translateX(${from}px)` }, { opacity: 1, transform: 'none' }], { duration: 180, easing: 'ease-out' });
-  }, [spreadKey, reducedMotion, store]);
+  }, [spreadKey, reducedMotion, store, turnStyle]);
+  // Remember where the visible pages were after every commit, for the next turn's snapshot.
+  const lastShot = useRef<{ pages: { idx: number; rect: DOMRect }[] } | null>(null);
+  useLayoutEffect(() => {
+    const row = turnRow.current;
+    if (!row) {
+      lastShot.current = null;
+      return;
+    }
+    const pages: { idx: number; rect: DOMRect }[] = [];
+    for (const p of row.querySelectorAll<HTMLElement>('[data-page-index]:not(.folio-prefetch)')) pages.push({ idx: Number(p.dataset.pageIndex), rect: p.getBoundingClientRect() });
+    lastShot.current = { pages };
+  });
   // Pages stay mounted across turns now, so re-select which ones count as on screen.
   useEffect(() => reobserve.current?.(), [spreadKey]);
 
@@ -375,12 +405,10 @@ export function ReaderView({
             if (e.target === e.currentTarget && s.tool === 'read') onToggleChrome();
           }}
         >
-          {ordered.map((i) => (
-            <PageView key={i} {...pageProps(i, true, true)} />
-          ))}
-          {prefetch.map((i) => (
-            <PageView key={i} {...pageProps(i, true, false)} className="folio-prefetch" />
-          ))}
+          {/* One array, so React matches pages by key when a prefetched page becomes visible. */}
+          {[...ordered.map((i) => [i, true] as const), ...prefetch.map((i) => [i, false] as const)].map(([i, shown]) =>
+            shown ? <PageView key={i} {...pageProps(i, true, true)} /> : <PageView key={i} {...pageProps(i, true, false)} className="folio-prefetch" />,
+          )}
         </div>
       </div>
     );
