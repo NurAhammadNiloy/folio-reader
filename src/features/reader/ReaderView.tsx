@@ -218,24 +218,25 @@ export function ReaderView({
   }, [saveNow]);
 
   // ----- gestures: pinch zoom, ctrl+wheel zoom, swipe page turn -----
-  const touches = useRef(new Map<number, { x: number; y: number; x0: number; y0: number; t0: number }>());
+  // Touch events, not pointer events: with native panning allowed (touch-action
+  // pan-x pan-y) the browser sends pointercancel as soon as a finger moves, which
+  // swallowed swipes and pinches. Touch events keep flowing. Apple Pencil touches
+  // (touchType "stylus") are ignored here; ink handles the pen.
+  const swipe = useRef<{ x0: number; y0: number; t0: number } | null>(null);
   const pinch = useRef<{ d0: number; ratio: number } | null>(null);
-  const onPointerDown = (e: React.PointerEvent) => {
-    if (e.pointerType !== 'touch') return;
-    touches.current.set(e.pointerId, { x: e.clientX, y: e.clientY, x0: e.clientX, y0: e.clientY, t0: performance.now() });
-    if (touches.current.size === 2 && !store.getState().strokeActive) {
-      const [a, b] = [...touches.current.values()];
-      pinch.current = { d0: Math.hypot(a!.x - b!.x, a!.y - b!.y), ratio: 1 };
+  const fingers = (e: React.TouchEvent) => Array.from(e.touches).filter((t) => (t as Touch & { touchType?: string }).touchType !== 'stylus');
+  const onTouchStart = (e: React.TouchEvent) => {
+    const f = fingers(e);
+    if (f.length === 1) swipe.current = { x0: f[0]!.clientX, y0: f[0]!.clientY, t0: performance.now() };
+    else swipe.current = null;
+    if (f.length === 2 && !store.getState().strokeActive) {
+      pinch.current = { d0: Math.hypot(f[0]!.clientX - f[1]!.clientX, f[0]!.clientY - f[1]!.clientY), ratio: 1 };
     }
   };
-  const onPointerMove = (e: React.PointerEvent) => {
-    const t = touches.current.get(e.pointerId);
-    if (!t) return;
-    t.x = e.clientX;
-    t.y = e.clientY;
-    if (pinch.current && touches.current.size === 2) {
-      const [a, b] = [...touches.current.values()];
-      const d = Math.hypot(a!.x - b!.x, a!.y - b!.y);
+  const onTouchMove = (e: React.TouchEvent) => {
+    const f = fingers(e);
+    if (pinch.current && f.length === 2) {
+      const d = Math.hypot(f[0]!.clientX - f[1]!.clientX, f[0]!.clientY - f[1]!.clientY);
       pinch.current.ratio = Math.max(LIMITS.zoomMin / scale, Math.min(LIMITS.zoomMax / scale, d / Math.max(1, pinch.current.d0)));
       if (content.current) {
         content.current.style.transformOrigin = 'center top';
@@ -243,23 +244,25 @@ export function ReaderView({
       }
     }
   };
-  const onPointerUp = (e: React.PointerEvent) => {
-    const t = touches.current.get(e.pointerId);
-    touches.current.delete(e.pointerId);
+  const onTouchEnd = (e: React.TouchEvent) => {
     if (pinch.current) {
-      if (touches.current.size < 2) {
+      if (fingers(e).length < 2) {
         const r = pinch.current.ratio;
         pinch.current = null;
         if (content.current) content.current.style.transform = '';
         if (Math.abs(r - 1) > 0.03) store.getState().zoomBy(r, scale);
       }
+      swipe.current = null;
       return;
     }
-    if (!t || e.type === 'pointercancel') return;
+    const t = swipe.current;
+    swipe.current = null;
+    const end = Array.from(e.changedTouches).find((c) => (c as Touch & { touchType?: string }).touchType !== 'stylus');
+    if (!t || !end || e.type === 'touchcancel') return;
     const st = store.getState();
     if (st.viewMode === 'scroll' || st.tool !== 'read' || st.strokeActive) return;
-    const dx = e.clientX - t.x0;
-    const dy = e.clientY - t.y0;
+    const dx = end.clientX - t.x0;
+    const dy = end.clientY - t.y0;
     const el = scroller.current!;
     const canPanX = el.scrollWidth > el.clientWidth + 2;
     if (!canPanX && Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.5 && performance.now() - t.t0 < 800) {
@@ -370,10 +373,10 @@ export function ReaderView({
       ref={scroller}
       className="relative h-full w-full overflow-auto bg-[var(--reader-bg)]"
       style={{ touchAction: s.tool === 'read' ? 'pan-x pan-y' : 'none' }}
-      onPointerDown={onPointerDown}
-      onPointerMove={onPointerMove}
-      onPointerUp={onPointerUp}
-      onPointerCancel={onPointerUp}
+      onTouchStart={onTouchStart}
+      onTouchMove={onTouchMove}
+      onTouchEnd={onTouchEnd}
+      onTouchCancel={onTouchEnd}
       onScroll={scheduleSave}
       data-testid="reader-scroller"
     >

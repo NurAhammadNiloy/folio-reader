@@ -146,4 +146,22 @@ test.describe('reader (RDR-01..03, RDR-05, PRG-01)', () => {
     await page.getByRole('button', { name: 'Remove bookmark Key idea' }).click();
     await expect(page.getByText('No bookmarks yet.')).toBeVisible();
   });
+  test('touch swipe turns the page (real touch events, native panning allowed)', async ({ page, browserName }) => {
+    test.skip(browserName !== 'chromium', 'uses the Chromium DevTools touch input');
+    await open(page, 'text-12p.pdf', /Open Folio Sample Text/);
+    await expect(page.getByTestId('page-indicator')).toContainText('1 / 12');
+    const box = (await page.locator('.folio-page').first().boundingBox())!;
+    const y = box.y + box.height / 2;
+    const cdp = await page.context().newCDPSession(page);
+    const swipe = async (x0: number, x1: number) => {
+      await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: x0, y }] });
+      for (let k = 1; k <= 6; k++) await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: x0 + ((x1 - x0) * k) / 6, y }] });
+      await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+    };
+    const mid = box.x + box.width / 2;
+    await swipe(mid + 120, mid - 120);
+    await expect(page.getByTestId('page-indicator')).toContainText('2 / 12');
+    await swipe(mid - 120, mid + 120);
+    await expect(page.getByTestId('page-indicator')).toContainText('1 / 12');
+  });
 });

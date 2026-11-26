@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { zipSync, strToU8 } from 'fflate';
+import { zipSync, unzipSync, strToU8, strFromU8 } from 'fflate';
 import { FolioDB, setDbForTests, getDb } from '../../src/core/storage/db';
 import { resetLeaseForTests } from '../../src/core/storage/lease';
 import { LibraryRepository } from '../../src/core/storage/libraryRepository';
@@ -10,6 +10,7 @@ import { ProgressRepository } from '../../src/core/storage/progressRepository';
 import { buildBackup, parseBackup, isSafeEntryName } from '../../src/core/export/backupFormat';
 import { sha256Hex } from '../../src/core/security/hash';
 import { fixture } from './helpers';
+import { SettingsRepository } from '../../src/core/storage/settingsRepository';
 
 let n = 0;
 beforeEach(() => {
@@ -157,5 +158,75 @@ describe('hostile backups are rejected before any write', () => {
     const m = strToU8(JSON.stringify({ format: 'folio-backup', formatVersion: 99, schemaVersion: 1, createdAt: 1, scope: 'library', entries: [] }));
     const zip = zipSync({ 'manifest.json': m, 'data.json': strToU8('{}') });
     await expect(parseBackup(zip)).rejects.toMatchObject({ code: 'version' });
+  });
+});
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- test edits arbitrary JSON paths
+type Tampered = any;
+
+describe('backup contents are checked for meaning, not only shape', () => {
+  /** Take a real backup, edit data.json, and re-sign it so only the edit is wrong. */
+  async function tampered(edit: (d: Tampered) => void) {
+    await seed();
+    const files = unzipSync(await buildBackup(await BackupRepository.collect({ kind: 'library' })));
+    const data = JSON.parse(strFromU8(files['data.json']!));
+    edit(data);
+    files['data.json'] = strToU8(JSON.stringify(data));
+    const m = JSON.parse(strFromU8(files['manifest.json']!));
+    for (const e of m.entries) {
+      e.size = files[e.path]!.length;
+      e.sha256 = await sha256Hex(files[e.path]!);
+    }
+    files['manifest.json'] = strToU8(JSON.stringify(m));
+    return zipSync(files);
+  }
+
+  it('rejects positions, bookmarks, progress and notebook links past the last page', async () => {
+    const cases: ((d: Tampered) => void)[] = [
+      (d) => (d.readingProgress[0].lastLocation.pageIndex = 99_999),
+      (d) => (d.readingProgress[0].qualifiedPages = [0, 5]),
+      (d) => (d.readingProgress[0].qualifiedPages = [0, 0]),
+      (d) => (d.bookmarks[0].location.pageIndex = 3),
+      (d) => (d.bookmarks[0].location = { kind: 'epub', spineIndex: 0, fraction: 0 }),
+      (d) => (d.notebookPages[0].link = { bookId: d.books[0].id, pageIndex: 7 }),
+    ];
+    for (const c of cases) {
+      await expect(parseBackup(await tampered(c))).rejects.toMatchObject({ code: 'invalid' });
+      await getDb().delete();
+      setDbForTests(new FolioDB(`folio-backup-${n++}`));
+    }
+  });
+
+  it('drops unknown settings and bad values instead of restoring them', async () => {
+    const zip = await tampered((d) => {
+      d.settings = [
+        { key: 'theme', value: { evil: 1 } },
+        { key: 'qualifySeconds', value: -5 },
+        { key: 'idleSeconds', value: 'abc' },
+        { key: '__proto__', value: { polluted: true } },
+        { key: 'toString', value: 'x' },
+        { key: 'fingerInDrawMode', value: 'draw' },
+      ];
+    });
+    const bundle = await parseBackup(zip);
+    expect(bundle.data.settings).toEqual([{ key: 'fingerInDrawMode', value: 'draw' }]);
+  });
+
+  it('ignores invalid settings already stored on the device', async () => {
+    await getDb().settings.bulkPut([
+      { key: 'theme', value: 'x'.repeat(1000) },
+      { key: 'qualifySeconds', value: 10 },
+      { key: 'constructor', value: 1 },
+    ]);
+    const s = await SettingsRepository.getAll();
+    expect(s.theme).toBe('system');
+    expect(s.qualifySeconds).toBe(10);
+    expect(Object.hasOwn(s, 'constructor')).toBe(false);
+  });
+
+  it('clears notebook links to books a full backup does not contain', async () => {
+    const ghost = crypto.randomUUID();
+    const bundle = await parseBackup(await tampered((d) => (d.notebookPages[0].link = { bookId: ghost, pageIndex: 0 })));
+    expect(bundle.data.notebookPages[0]!.link).toBeNull();
   });
 });

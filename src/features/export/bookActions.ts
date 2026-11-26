@@ -7,7 +7,7 @@ import type { BookRecord } from '../../core/storage/types';
 export async function downloadOriginal(book: BookRecord) {
   const file = await LibraryRepository.getFile(book.id);
   if (!file) throw new Error('The original file for this book is missing. Re-import it or restore a backup.');
-  download(file.blob, book.fileName || `${safeFileName(book.title)}.${book.format}`);
+  download(file.blob, `${safeFileName(book.fileName.replace(/\.(pdf|epub)$/i, '') || book.title)}.${book.format}`);
 }
 
 /** Export a copy with ink marks. The stored original is read, never modified. */

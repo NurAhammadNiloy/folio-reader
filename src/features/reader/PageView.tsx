@@ -14,6 +14,7 @@ import { InkLayer } from '../ink/InkLayer';
 import type { AnnotationRecord, InkStyle, StrokePoint } from '../../core/storage/types';
 import type { Tool } from './readerStore';
 import { getPageText } from './textCache';
+import { findAll, fold, foldQuery } from './textMatch';
 
 export interface PageViewProps {
   doc: PDFDocumentProxy;
@@ -197,30 +198,25 @@ function highlight(container: HTMLElement, query: string, activeStart: number | 
     parent.replaceChild(document.createTextNode(m.textContent ?? ''), m);
     parent.normalize();
   }
-  const q = query.trim().toLocaleLowerCase();
+  const q = foldQuery(query);
   if (!q) return;
-  const spans = [...container.querySelectorAll<HTMLSpanElement>(':scope span:not(.markedContent):not(.endOfContent)')].filter(
-    (s) => s.childElementCount === 0,
-  );
-  // Build the same concatenation used by the search index (items joined by EOL-aware spacing).
+  // Walk the text layer in document order, joining runs exactly as the search
+  // index does (textMatch.joinItems): spans back to back, a space per <br>.
   let text = '';
   const ranges: { span: HTMLSpanElement; start: number; end: number }[] = [];
-  for (const s of spans) {
-    const t = s.textContent ?? '';
+  for (const n of container.querySelectorAll<HTMLElement>('span, br')) {
+    if (n.tagName === 'BR') {
+      text += ' ';
+      continue;
+    }
+    if (n.childElementCount > 0 || n.classList.contains('markedContent') || n.classList.contains('endOfContent')) continue;
+    const t = n.textContent ?? '';
     if (!t.length) continue;
-    ranges.push({ span: s, start: text.length, end: text.length + t.length });
-    text += t + ' ';
+    ranges.push({ span: n as HTMLSpanElement, start: text.length, end: text.length + t.length });
+    text += t;
   }
-  const lower = text.toLocaleLowerCase();
-  let from = 0;
   let first: HTMLElement | null = null;
-  const hits: { start: number; end: number }[] = [];
-  while (true) {
-    const at = lower.indexOf(q, from);
-    if (at < 0) break;
-    hits.push({ start: at, end: at + q.length });
-    from = at + q.length;
-  }
+  const hits = findAll(fold(text), q, Infinity);
   for (const r of ranges) {
     const local = hits.filter((h) => h.start < r.end && h.end > r.start);
     if (!local.length) continue;

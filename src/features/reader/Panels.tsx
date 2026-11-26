@@ -8,6 +8,19 @@ import { errorMessage, useApp } from '../../app/appStore';
 import { readOutline, renderPage, type OutlineNode, type PDFDocumentProxy } from '../../core/documents/pdfEngine';
 import { useReader, type ReaderStore, type SearchHit } from './readerStore';
 import { getPageText } from './textCache';
+import { findAll, foldQuery } from './textMatch';
+
+/** Snippet bounds about 40 characters either side of a hit, widened to whole words. */
+function snippetStart(t: string, at: number): number {
+  let s = Math.max(0, at - 40);
+  while (s > 0 && s > at - 60 && !/\s/.test(t[s - 1]!)) s--;
+  return s;
+}
+function snippetEnd(t: string, end: number): number {
+  let e = Math.min(t.length, end + 50);
+  while (e < t.length && e < end + 70 && !/\s/.test(t[e]!)) e++;
+  return e;
+}
 import { LIMITS } from '../../core/security/limits';
 
 export function PanelFrame({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
@@ -178,7 +191,7 @@ export function SearchPanel({ doc, store, onClose }: { doc: PDFDocumentProxy; st
 
   async function run(query: string) {
     const id = ++runId.current;
-    const needle = query.trim().toLocaleLowerCase();
+    const needle = foldQuery(query);
     store.getState().set({ search: { query, hits: [], active: -1, running: !!needle, scanned: 0 } });
     if (!needle) return;
     const hits: SearchHit[] = [];
@@ -187,14 +200,10 @@ export function SearchPanel({ doc, store, onClose }: { doc: PDFDocumentProxy; st
       if (id !== runId.current) return;
       const text = await getPageText(doc, i);
       if (!text.joined.trim()) emptyPages++;
-      const lower = text.joined.toLocaleLowerCase();
-      let from = 0;
-      while (hits.length < 5000) {
-        const at = lower.indexOf(needle, from);
-        if (at < 0) break;
-        const s0 = Math.max(0, at - 40);
-        hits.push({ pageIndex: i, start: at, length: needle.length, snippet: (s0 > 0 ? '…' : '') + text.joined.slice(s0, at + needle.length + 50).trim() });
-        from = at + needle.length;
+      for (const h of findAll(text.folded, needle, 5000 - hits.length)) {
+        const s0 = snippetStart(text.joined, h.start);
+        const s1 = snippetEnd(text.joined, h.end);
+        hits.push({ pageIndex: i, start: h.start, length: h.end - h.start, snippet: (s0 > 0 ? '…' : '') + text.joined.slice(s0, s1).trim() + (s1 < text.joined.length ? '…' : '') });
       }
       if (i % 20 === 19) {
         store.getState().set({ search: { query, hits: hits.slice(), active: -1, running: true, scanned: i + 1 } });

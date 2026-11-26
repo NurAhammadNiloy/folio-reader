@@ -12,6 +12,7 @@ export const BACKUP_FORMAT_VERSION = 1;
 
 export { BackupError } from './backupError';
 import { BackupError } from './backupError';
+import { sanitiseSetting } from '../storage/settingsValues';
 
 const uuid = z.string().regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
 const num = z.number().finite();
@@ -328,12 +329,34 @@ export async function parseBackup(zip: Uint8Array): Promise<BackupBundle> {
     const b = needBook(a.bookId, 'marks');
     if (a.pageIndex >= b.pageCount) throw new BackupError('invalid', 'The backup has a mark on a page that does not exist.');
   }
-  for (const bm of data.bookmarks) needBook(bm.bookId, 'a bookmark');
-  for (const p of data.readingProgress) needBook(p.bookId, 'reading progress');
+  const onPage = (loc: { kind: 'pdf'; pageIndex: number } | { kind: 'epub'; spineIndex: number }, b: { pageCount: number; format: string }) =>
+    loc.kind === b.format && (loc.kind === 'pdf' ? loc.pageIndex : loc.spineIndex) < b.pageCount;
+  for (const bm of data.bookmarks) {
+    if (!onPage(bm.location, needBook(bm.bookId, 'a bookmark'))) throw new BackupError('invalid', 'The backup has a bookmark on a page that does not exist.');
+  }
+  for (const p of data.readingProgress) {
+    const b = needBook(p.bookId, 'reading progress');
+    if (p.lastLocation && !onPage(p.lastLocation, b)) throw new BackupError('invalid', 'The backup has a reading position on a page that does not exist.');
+    if (p.qualifiedPages.some((i) => i >= b.pageCount) || new Set(p.qualifiedPages).size !== p.qualifiedPages.length)
+      throw new BackupError('invalid', 'The backup has reading progress for pages that do not exist.');
+  }
   for (const s of data.readingSessions) needBook(s.bookId, 'reading history');
   const notebooks = new Set(data.notebooks.map((n) => n.id));
   for (const n of data.notebooks) if (n.linkedBookId && !books.has(n.linkedBookId) && manifest.scope === 'library') n.linkedBookId = null;
-  for (const p of data.notebookPages) if (!notebooks.has(p.notebookId)) throw new BackupError('invalid', 'The backup has a notebook page without its notebook.');
+  for (const p of data.notebookPages) {
+    if (!notebooks.has(p.notebookId)) throw new BackupError('invalid', 'The backup has a notebook page without its notebook.');
+    if (!p.link) continue;
+    const b = books.get(p.link.bookId);
+    // A link to a book outside a full backup cannot resolve; a book-scope backup may link to books already on the device.
+    if (!b) {
+      if (manifest.scope === 'library') p.link = null;
+    } else if (p.link.pageIndex >= b.pageCount) throw new BackupError('invalid', 'The backup has a notebook link to a page that does not exist.');
+  }
+  // Settings: keep known keys with valid values only (a backup cannot inject arbitrary settings).
+  data.settings = data.settings.flatMap((r) => {
+    const value = sanitiseSetting(r.key, r.value);
+    return value === undefined ? [] : [{ key: r.key, value }];
+  });
   const allIds = [
     ...data.annotations.map((x) => x.id),
     ...data.notebooks.map((x) => x.id),

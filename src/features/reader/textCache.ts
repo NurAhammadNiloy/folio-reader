@@ -1,11 +1,13 @@
 import type { PDFDocumentProxy } from '../../core/documents/pdfEngine';
+import { fold, joinItems, type Folded } from './textMatch';
 
 type TextContent = Awaited<ReturnType<Awaited<ReturnType<PDFDocumentProxy['getPage']>>['getTextContent']>>;
 export interface PageText {
   content: TextContent;
   items: TextContent['items'];
-  /** Concatenation matching the text-layer highlight logic (span texts joined by a space). */
+  /** Concatenation matching the text layer (see textMatch.joinItems). */
   joined: string;
+  folded: Folded;
 }
 
 const caches = new WeakMap<PDFDocumentProxy, Map<number, Promise<PageText>>>();
@@ -24,9 +26,8 @@ export function getPageText(doc: PDFDocumentProxy, index: number): Promise<PageT
       .then((page) => page.getTextContent())
       .then((content) => {
         const items = content.items;
-        let joined = '';
-        for (const it of items) if ('str' in it && it.str.length) joined += it.str + ' ';
-        return { content, items, joined };
+        const joined = joinItems(items);
+        return { content, items, joined, folded: fold(joined) };
       });
     m.set(index, p);
   }

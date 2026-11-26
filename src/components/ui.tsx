@@ -178,7 +178,21 @@ export function Menu({
         const r = btn.current!.getBoundingClientRect();
         const w = p.offsetWidth;
         const left = align === 'end' ? Math.max(8, r.right - w) : Math.min(r.left, window.innerWidth - w - 8);
-        const top = r.bottom + 4 + p.offsetHeight > window.innerHeight ? Math.max(8, r.top - p.offsetHeight - 4) : r.bottom + 4;
+        // Fit the viewport: open below if it fits, else on the side with more room,
+        // capped to that room and scrollable (short phone screens in landscape).
+        p.style.maxHeight = '';
+        const h = p.offsetHeight;
+        const below = window.innerHeight - r.bottom - 12;
+        const above = r.top - 12;
+        let top: number;
+        if (h <= below || below >= above) {
+          top = r.bottom + 4;
+          p.style.maxHeight = `${Math.max(120, below)}px`;
+        } else {
+          const room = Math.max(120, above);
+          top = Math.max(8, r.top - 4 - Math.min(h, room));
+          p.style.maxHeight = `${room}px`;
+        }
         p.style.left = `${left}px`;
         p.style.top = `${top}px`;
         p.querySelector<HTMLButtonElement>('button:not([disabled])')?.focus();
@@ -218,7 +232,7 @@ export function Menu({
         role="menu"
         aria-label={label}
         onKeyDown={onKey}
-        className="fixed m-0 min-w-52 rounded-xl border border-line bg-surface p-1 text-ink shadow-xl"
+        className="fixed m-0 min-w-52 overflow-y-auto overscroll-contain rounded-xl border border-line bg-surface p-1 text-ink shadow-xl"
       >
         {items.map((it, i) =>
           it === 'sep' ? (
@@ -278,5 +292,5 @@ export function download(data: Blob, filename: string) {
 
 export function safeFileName(s: string) {
   // eslint-disable-next-line no-control-regex -- rejecting control characters is intended
-  return s.replace(/[\\/:*?"<>|\u0000-\u001f]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 120) || 'book';
+  return s.replace(/[\\/:*?"<>|\u0000-\u001f]+/g, ' ').replace(/\s+/g, ' ').trim().replace(/^[.\s]+/, '').slice(0, 120) || 'book';
 }
