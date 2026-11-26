@@ -34,6 +34,7 @@ import { useReader, type ReaderStore } from '../reader/readerStore';
 import { useReadingTracking } from '../reader/useReadingTracking';
 import type { Visibility } from '../reader/ReaderView';
 import { downloadOriginal } from '../export/bookActions';
+import { storedBlob } from '../../core/storage/types';
 
 type LoadState =
   | { kind: 'loading' }
@@ -52,7 +53,7 @@ function useEpubDocument(bookId: string, store: ReaderStore): LoadState {
       if (!book) return setState({ kind: 'not-found' });
       const file = await LibraryRepository.getFile(bookId);
       if (!file) return setState({ kind: 'missing-file', book });
-      const bytes = new Uint8Array(await file.blob.arrayBuffer());
+      const bytes = new Uint8Array(await storedBlob(file.blob, file.mime).arrayBuffer());
       if ((await sha256Hex(bytes)) !== book.hash) return setState({ kind: 'corrupt', book, detail: 'The stored file does not match its checksum.' });
       const { parseEpub, EpubHandle: Handle } = await import('../../core/documents/epubEngine');
       let parsed;

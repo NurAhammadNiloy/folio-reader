@@ -10,6 +10,7 @@ import { ProgressRepository } from '../../src/core/storage/progressRepository';
 import { buildBackup, parseBackup, isSafeEntryName } from '../../src/core/export/backupFormat';
 import { sha256Hex } from '../../src/core/security/hash';
 import { fixture } from './helpers';
+import { storedBlob } from '../../src/core/storage/types';
 import { SettingsRepository } from '../../src/core/storage/settingsRepository';
 
 let n = 0;
@@ -60,7 +61,8 @@ describe('backup roundtrip', () => {
     const restored = await LibraryRepository.get(book.id);
     expect(restored?.hash).toBe(hash);
     const file = await LibraryRepository.getFile(book.id);
-    expect(await sha256Hex(new Uint8Array(await file!.blob.arrayBuffer()))).toBe(hash);
+    expect(file!.blob).toBeInstanceOf(ArrayBuffer); // WebKit-safe storage
+    expect(await sha256Hex(new Uint8Array(await storedBlob(file!.blob, file!.mime).arrayBuffer()))).toBe(hash);
     const anns = await getDb().annotations.toArray();
     expect(anns.map((a) => a.id)).toEqual(before.data.annotations.map((a) => a.id));
     expect(anns[0]!.points).toEqual(before.data.annotations[0]!.points);

@@ -62,7 +62,7 @@ test.describe('reader (RDR-01..03, RDR-05, PRG-01)', () => {
     await page.getByRole('button', { name: 'View and more' }).click();
     await page.getByRole('menuitem', { name: 'Two-page spread' }).click();
     await page.getByRole('button', { name: 'Next page' }).click();
-    await expect(page.getByTestId('visible-pages').locator('[data-page-index]').filter({ has: page.locator('canvas') })).toHaveCount(2);
+    await expect(page.getByTestId('visible-pages').locator('[data-page-index]:not(.folio-prefetch)').filter({ has: page.locator('canvas') })).toHaveCount(2);
     await page.getByRole('button', { name: 'View and more' }).click();
     await page.getByRole('menuitem', { name: 'Continuous scroll' }).click();
     await page.getByRole('button', { name: 'Zoom in' }).first().click();
@@ -132,6 +132,8 @@ test.describe('reader (RDR-01..03, RDR-05, PRG-01)', () => {
     await page.getByLabel('Go to page').press('Enter');
     await expect(page.getByTestId('page-indicator')).toContainText('4 · 6 / 12');
     await page.getByRole('button', { name: 'Bookmark this page' }).click();
+    // The toggle flips from the stored record, so the write has committed before we reload.
+    await expect(page.getByRole('button', { name: 'Remove bookmark for this page' })).toBeVisible();
     await page.reload();
     await expect(page.getByTestId('page-indicator')).toContainText('4 · 6 / 12');
     await page.getByRole('button', { name: 'View and more' }).click();

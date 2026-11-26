@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { MoreHorizontal, Star, BookOpen } from 'lucide-react';
@@ -12,10 +12,12 @@ import type { BookRecord, CollectionRecord, MembershipRecord, ReadingProgressRec
 import { BookCollectionsDialog, DeleteBookDialog, EditDetailsDialog, ConfirmDialog } from './dialogs';
 import { downloadOriginal, exportAnnotated } from '../export/bookActions';
 import { exportBookPackage } from '../backup/backupActions';
+import { storedBlob } from '../../core/storage/types';
 
 function Cover({ book, className }: { book: BookRecord; className?: string }) {
   const cover = useLiveQuery(() => (book.coverId ? getDb().covers.get(book.coverId) : undefined), [book.coverId]);
-  const url = useObjectUrl(cover?.blob);
+  const coverBlob = useMemo(() => (cover ? storedBlob(cover.blob, cover.type ?? 'image/webp') : undefined), [cover]);
+  const url = useObjectUrl(coverBlob);
   return (
     <div className={cx('relative overflow-hidden rounded-md bg-paper shadow-[var(--shadow-book)]', className)}>
       {url ? (

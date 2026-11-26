@@ -31,7 +31,8 @@ export interface PageViewProps {
   inkStyle: InkStyle;
   strokes: AnnotationRecord[] | undefined;
   fingerDraws: boolean;
-  search: { query: string; activeStart: number | null };
+  searchQuery: string;
+  searchActiveStart: number | null;
   onNoText: (index: number, noText: boolean) => void;
   onCommit: (index: number, points: StrokePoint[], style: InkStyle, unitsPerCssPx: number) => void;
   onErase: (ids: string[]) => void;
@@ -46,6 +47,8 @@ export function pageCssSize(desc: PageDescriptor | null, fallback: { width: numb
   const h = (desc?.height ?? fallback.height) * scale;
   return extraRotation % 180 === 0 ? { width: w, height: h } : { width: h, height: w };
 }
+
+const NO_STROKES: AnnotationRecord[] = [];
 
 export const PageView = memo(function PageView(p: PageViewProps) {
   const host = useRef<HTMLDivElement>(null);
@@ -143,12 +146,12 @@ export const PageView = memo(function PageView(p: PageViewProps) {
   useEffect(() => {
     const container = textHost.current;
     if (!container) return;
-    highlight(container, p.search.query, p.search.activeStart);
-  }, [p.search.query, p.search.activeStart, textReady]);
+    highlight(container, p.searchQuery, p.searchActiveStart);
+  }, [p.searchQuery, p.searchActiveStart, textReady]);
 
   const transform = useMemo(() => (viewport ? pdfTransform(viewport) : null), [viewport]);
   const modeClass = p.tool === 'read' ? 'mode-read' : p.tool === 'draw' ? 'mode-draw' : 'mode-erase';
-  const strokes = p.strokes ?? [];
+  const strokes = p.strokes ?? NO_STROKES;
 
   return (
     <div
@@ -170,7 +173,8 @@ export const PageView = memo(function PageView(p: PageViewProps) {
         </div>
       )}
       <div ref={textHost} className="textLayer" />
-      {transform && viewport && Math.abs(viewport.width - size.width) < 1 && (
+      {/* Ink canvases exist only inside the render window, so scrolling a long book does not pile them up. */}
+      {p.render && transform && viewport && Math.abs(viewport.width - size.width) < 1 && (
         <InkLayer
           width={size.width}
           height={size.height}

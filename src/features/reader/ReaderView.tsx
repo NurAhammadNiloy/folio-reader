@@ -77,6 +77,7 @@ export function ReaderView({
   }, [scale, store]);
 
   // ----- visibility tracking (IntersectionObserver), current page in scroll mode -----
+  const reobserve = useRef<(() => void) | null>(null);
   useEffect(() => {
     const root = scroller.current!;
     const ratios = new Map<number, IntersectionObserverEntry>();
@@ -108,12 +109,14 @@ export function ReaderView({
       io.disconnect();
       ratios.clear();
       for (const el of content.current?.querySelectorAll<HTMLElement>('[data-page-index]') ?? [])
-        if (!el.closest('[data-prefetch]')) io.observe(el);
+        if (!el.classList.contains('folio-prefetch')) io.observe(el);
     };
     observe();
+    reobserve.current = observe;
     const mo = new MutationObserver(observe);
     mo.observe(content.current!, { childList: true, subtree: false });
     return () => {
+      reobserve.current = null;
       io.disconnect();
       mo.disconnect();
     };
@@ -293,6 +296,24 @@ export function ReaderView({
   const inkStyle = s.activeInk === 'pen' ? s.pen : s.highlighter;
   const activeHit = s.search.active >= 0 ? s.search.hits[s.search.active] : undefined;
 
+  // Page-turn motion without remounting the pages (remounting threw away the prefetched canvas).
+  const turnRow = useRef<HTMLDivElement>(null);
+  const spreadKey = s.viewMode === 'scroll' ? '' : spread.join('-');
+  const firstTurn = useRef(true);
+  useLayoutEffect(() => {
+    if (firstTurn.current || !spreadKey) {
+      firstTurn.current = false;
+      return;
+    }
+    const el = turnRow.current;
+    if (!el || reducedMotion || typeof el.animate !== 'function') return;
+    const st = store.getState();
+    const from = (st.turnDir === 1) !== (st.direction === 'rtl') ? 14 : -14;
+    el.animate([{ opacity: 0.35, transform: `translateX(${from}px)` }, { opacity: 1, transform: 'none' }], { duration: 180, easing: 'ease-out' });
+  }, [spreadKey, reducedMotion, store]);
+  // Pages stay mounted across turns now, so re-select which ones count as on screen.
+  useEffect(() => reobserve.current?.(), [spreadKey]);
+
   const pageProps = (i: number, render: boolean, visible: boolean) => ({
     doc,
     index: i,
@@ -308,7 +329,8 @@ export function ReaderView({
     inkStyle,
     strokes: ink.byPage.get(i),
     fingerDraws,
-    search: { query: s.search.query, activeStart: activeHit && activeHit.pageIndex === i ? activeHit.start : null },
+    searchQuery: s.search.query,
+    searchActiveStart: activeHit && activeHit.pageIndex === i ? activeHit.start : null,
     onNoText,
     onCommit: ink.commitStroke,
     onErase: ink.erase,
@@ -334,7 +356,6 @@ export function ReaderView({
     const nextSpread = s.viewMode === 'spread' ? spreadFor(spread[spread.length - 1]! + 1, n, s.coverAlone) : [s.current + 1];
     const prevSpread = s.viewMode === 'spread' ? spreadFor(Math.max(0, spread[0]! - 1), n, s.coverAlone) : [s.current - 1];
     const prefetch = [...new Set([...nextSpread, ...prevSpread])].filter((i) => i >= 0 && i < n && !spread.includes(i));
-    const turnFrom = (s.turnDir === 1) !== (s.direction === 'rtl') ? '14px' : '-14px';
     body = (
       <div
         ref={content}
@@ -344,11 +365,12 @@ export function ReaderView({
           if (e.target === e.currentTarget && s.tool === 'read') onToggleChrome();
         }}
       >
+        {/* One stable parent keyed by page, so a prefetched page keeps its canvas when it becomes visible. */}
         <div
-          key={spread.join('-')}
+          ref={turnRow}
           data-testid="visible-pages"
-          className={`flex ${reducedMotion ? '' : 'page-turn'}`}
-          style={{ gap: s.viewMode === 'spread' ? 2 : 0, ['--turn-from' as string]: turnFrom }}
+          className="flex"
+          style={{ gap: s.viewMode === 'spread' ? 2 : 0 }}
           onClick={(e) => {
             if (e.target === e.currentTarget && s.tool === 'read') onToggleChrome();
           }}
@@ -356,12 +378,8 @@ export function ReaderView({
           {ordered.map((i) => (
             <PageView key={i} {...pageProps(i, true, true)} />
           ))}
-        </div>
-        <div aria-hidden className="pointer-events-none fixed -left-[99999px] top-0 h-0 w-0 overflow-hidden">
           {prefetch.map((i) => (
-            <div key={i} data-prefetch>
-              <PageView {...pageProps(i, true, false)} />
-            </div>
+            <PageView key={i} {...pageProps(i, true, false)} className="folio-prefetch" />
           ))}
         </div>
       </div>

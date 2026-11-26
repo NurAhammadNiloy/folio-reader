@@ -39,9 +39,21 @@ export interface BookRecord {
   lastOpenedAt: number | null;
 }
 
+/**
+ * Binary payloads are stored as ArrayBuffer. WebKit cannot store Blobs in IndexedDB in
+ * private or ephemeral sessions ("Could not save"), while ArrayBuffers work everywhere.
+ * Older records may still hold a Blob; read through `storedBlob()`.
+ */
+export type StoredBinary = Blob | ArrayBuffer;
+
+/** Wrap a stored payload as a Blob of the given type. */
+export function storedBlob(v: StoredBinary, type: string): Blob {
+  return v instanceof Blob ? v : new Blob([v], { type });
+}
+
 export interface BookFileRecord {
   bookId: string;
-  blob: Blob;
+  blob: StoredBinary;
   mime: string;
   size: number;
   checksum: string;
@@ -50,7 +62,9 @@ export interface BookFileRecord {
 export interface CoverRecord {
   id: string;
   bookId: string;
-  blob: Blob;
+  blob: StoredBinary;
+  /** MIME type of the cover image (missing on old records: image/webp). */
+  type?: string;
 }
 
 export interface CollectionRecord {

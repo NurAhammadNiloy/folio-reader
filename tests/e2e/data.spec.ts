@@ -12,10 +12,10 @@ async function dump(page: import('@playwright/test').Page) {
     const req = indexedDB.open('folio');
     const db: IDBDatabase = await new Promise((r) => (req.onsuccess = () => r(req.result)));
     const all = (s: string) => new Promise<unknown[]>((r) => { const q = db.transaction(s).objectStore(s).getAll(); q.onsuccess = () => r(q.result); });
-    const files = (await all('bookFiles')) as { bookId: string; blob: Blob }[];
+    const files = (await all('bookFiles')) as { bookId: string; blob: Blob | ArrayBuffer }[];
     const hashes: string[] = [];
     for (const f of files) {
-      const d = await crypto.subtle.digest('SHA-256', await f.blob.arrayBuffer());
+      const d = await crypto.subtle.digest('SHA-256', f.blob instanceof Blob ? await f.blob.arrayBuffer() : f.blob);
       hashes.push([...new Uint8Array(d)].map((b) => b.toString(16).padStart(2, '0')).join(''));
     }
     const pages = (await all('notebookPages')) as { textBlocks: { text: string }[] }[];

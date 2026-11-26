@@ -12,6 +12,7 @@ import {
 } from '../../core/documents/pdfEngine';
 import type { ReaderStore } from './readerStore';
 import { sha256Hex } from '../../core/security/hash';
+import { storedBlob } from '../../core/storage/types';
 
 export type DocState =
   | { kind: 'loading' }
@@ -43,7 +44,7 @@ export function useReaderDocument(bookId: string, store: ReaderStore, attempt: n
       if (!file) return setState({ kind: 'missing-file', book });
       let bytes: Uint8Array;
       try {
-        bytes = new Uint8Array(await file.blob.arrayBuffer());
+        bytes = new Uint8Array(await storedBlob(file.blob, file.mime).arrayBuffer());
       } catch {
         return setState({ kind: 'missing-file', book });
       }

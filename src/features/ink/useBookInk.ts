@@ -143,6 +143,10 @@ export function useBookInk(bookId: string) {
 
   const checkpoint = useCallback(
     (pageIndex: number, points: StrokePoint[], style: InkStyle) => {
+      if (!points.length) {
+        void InkRepository.clearCheckpoint(checkpointId(pageIndex)).catch(() => undefined);
+        return;
+      }
       void InkRepository.saveCheckpoint({
         id: checkpointId(pageIndex),
         bookId,

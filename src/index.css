@@ -404,3 +404,12 @@ dialog {
 .reduce-motion .epub-turn {
   transition: none;
 }
+
+/* Prefetched pages render off screen in the same row, so they keep their canvas when turned to. */
+.folio-prefetch {
+  position: fixed !important;
+  left: -99999px;
+  top: 0;
+  visibility: hidden;
+  pointer-events: none;
+}

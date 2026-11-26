@@ -6,6 +6,7 @@ import { resetLeaseForTests, acquireLease, getLeaseState } from '../../src/core/
 import { ReadOnlyError, StorageError, toStorageError } from '../../src/core/storage/errors';
 import { pendingWrites } from '../../src/core/storage/writeTracker';
 import { sha256Hex } from '../../src/core/security/hash';
+import { storedBlob } from '../../src/core/storage/types';
 
 let n = 0;
 beforeEach(() => {
@@ -32,17 +33,28 @@ async function input(text = 'hello') {
   };
 }
 
-describe('IndexedDB Blob persistence (spike)', () => {
+describe('IndexedDB binary persistence (stored as ArrayBuffer for WebKit)', () => {
   it('stores and reads back original bytes exactly', async () => {
     const inp = await input('blob');
     const book = await LibraryRepository.addBook(inp);
     const file = await LibraryRepository.getFile(book.id);
     expect(file).toBeDefined();
-    const back = new Uint8Array(await file!.blob.arrayBuffer());
+    expect(file!.blob).toBeInstanceOf(ArrayBuffer);
+    const back = new Uint8Array(await storedBlob(file!.blob, file!.mime).arrayBuffer());
     expect(await sha256Hex(back)).toBe(inp.hash);
     expect(file!.size).toBe(inp.file.size);
     const cover = await LibraryRepository.getCover(book.coverId!);
-    expect(cover?.blob.size).toBe(3);
+    expect(storedBlob(cover!.blob, cover!.type ?? '').size).toBe(3);
+    expect(cover!.type).toBe('image/webp');
+  });
+
+  it('still reads records written as Blobs by earlier builds', async () => {
+    const inp = await input('legacy');
+    const book = await LibraryRepository.addBook(inp);
+    await getDb().bookFiles.update(book.id, { blob: inp.file });
+    const file = await LibraryRepository.getFile(book.id);
+    const back = new Uint8Array(await storedBlob(file!.blob, file!.mime).arrayBuffer());
+    expect(await sha256Hex(back)).toBe(inp.hash);
   });
 });
 

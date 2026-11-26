@@ -66,6 +66,9 @@ export const LibraryRepository = {
       updatedAt: now,
       lastOpenedAt: null,
     };
+    // Read the bytes before the transaction (awaiting non-IndexedDB work inside it would end it).
+    const fileBytes = await input.file.arrayBuffer();
+    const coverBytes = input.cover ? await input.cover.arrayBuffer() : null;
     const db = getDb();
     await mutate(
       () => [db.books, db.bookFiles, db.covers],
@@ -75,12 +78,12 @@ export const LibraryRepository = {
         await db.books.add(book);
         await db.bookFiles.add({
           bookId: id,
-          blob: input.file,
+          blob: fileBytes,
           mime: input.mime,
           size: input.file.size,
           checksum: input.hash,
         });
-        if (input.cover && coverId) await db.covers.add({ id: coverId, bookId: id, blob: input.cover });
+        if (input.cover && coverBytes && coverId) await db.covers.add({ id: coverId, bookId: id, blob: coverBytes, type: input.cover.type || 'image/webp' });
       },
     );
     return book;
