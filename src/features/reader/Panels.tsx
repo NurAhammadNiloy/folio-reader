@@ -27,7 +27,7 @@ export function PanelFrame({ title, onClose, children }: { title: string; onClos
   return (
     <aside
       aria-label={title}
-      className="absolute inset-y-0 left-0 z-30 flex w-[min(340px,100%)] flex-col border-r border-line bg-surface shadow-xl"
+      className="absolute inset-y-0 left-0 z-30 flex w-[min(340px,100%)] flex-col border-r border-line bg-surface shadow-xl @2xl:relative @2xl:inset-auto @2xl:order-first @2xl:w-[300px] @2xl:flex-none @2xl:shadow-none"
       onKeyDown={(e) => {
         if (e.key === 'Escape') {
           e.stopPropagation();

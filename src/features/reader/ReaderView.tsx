@@ -3,7 +3,7 @@ import type { PDFDocumentProxy } from '../../core/documents/pdfEngine';
 import { RenderBudget } from './renderBudget';
 import { LIMITS } from '../../core/security/limits';
 import { PageView, pageCssSize } from './PageView';
-import { spreadFor, useReader, type ReaderStore } from './readerStore';
+import { showsSpread, spreadFor, useReader, type ReaderStore } from './readerStore';
 import type { BookInk } from '../ink/useBookInk';
 import { ProgressRepository } from '../../core/storage/progressRepository';
 import type { PdfLocation } from '../../core/storage/types';
@@ -56,9 +56,16 @@ export function ReaderView({
     return () => ro.disconnect();
   }, []);
 
+  // Portrait reading area: a chosen spread falls back to one page, landscape restores it.
+  useEffect(() => {
+    if (!box.w) return;
+    const portrait = box.h > box.w * 1.1;
+    if (store.getState().portrait !== portrait) store.getState().set({ portrait });
+  }, [box.w, box.h, store]);
+
   const n = s.numPages;
   const extra = s.rotation;
-  const spread = s.viewMode === 'spread' ? spreadFor(s.current, n, s.coverAlone) : [s.current];
+  const spread = showsSpread(s) ? spreadFor(s.current, n, s.coverAlone) : [s.current];
 
   // Effective CSS scale from zoom mode, based on the current page/spread.
   const scale = useMemo(() => {
@@ -383,8 +390,8 @@ export function ReaderView({
     );
   } else {
     const ordered = s.direction === 'rtl' ? [...spread].reverse() : spread;
-    const nextSpread = s.viewMode === 'spread' ? spreadFor(spread[spread.length - 1]! + 1, n, s.coverAlone) : [s.current + 1];
-    const prevSpread = s.viewMode === 'spread' ? spreadFor(Math.max(0, spread[0]! - 1), n, s.coverAlone) : [s.current - 1];
+    const nextSpread = showsSpread(s) ? spreadFor(spread[spread.length - 1]! + 1, n, s.coverAlone) : [s.current + 1];
+    const prevSpread = showsSpread(s) ? spreadFor(Math.max(0, spread[0]! - 1), n, s.coverAlone) : [s.current - 1];
     const prefetch = [...new Set([...nextSpread, ...prevSpread])].filter((i) => i >= 0 && i < n && !spread.includes(i));
     body = (
       <div
@@ -400,7 +407,7 @@ export function ReaderView({
           ref={turnRow}
           data-testid="visible-pages"
           className="flex"
-          style={{ gap: s.viewMode === 'spread' ? 2 : 0 }}
+          style={{ gap: showsSpread(s) ? 2 : 0 }}
           onClick={(e) => {
             if (e.target === e.currentTarget && s.tool === 'read') onToggleChrome();
           }}

@@ -332,7 +332,9 @@ function ReadyReader({
           <Button onClick={() => void ink.recoverCheckpoint(ink.checkpoints[0]!, false)}>Discard</Button>
         </div>
       )}
-      <div className="relative min-h-0 flex-1">
+      {/* A container query decides whether a panel sits beside the page (wide) or over it (narrow, e.g. the study split). */}
+      <div className="@container relative flex min-h-0 flex-1">
+        <div className="relative min-w-0 flex-1">
         <ReaderView
           store={store}
           doc={pdf.doc}
@@ -344,6 +346,7 @@ function ReadyReader({
           visibilityRef={visibilityRef}
           onToggleChrome={() => store.getState().set({ chrome: !store.getState().chrome })}
         />
+        </div>
         {panel === 'outline' && <OutlinePanel doc={pdf.doc} store={store} onClose={() => store.getState().set({ panel: null })} />}
         {panel === 'thumbs' && <ThumbsPanel doc={pdf.doc} store={store} docKey={book.id} onClose={() => store.getState().set({ panel: null })} />}
         {panel === 'search' && <SearchPanel doc={pdf.doc} store={store} onClose={() => store.getState().set({ panel: null })} />}

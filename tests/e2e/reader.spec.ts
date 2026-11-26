@@ -55,6 +55,9 @@ test.describe('reader (RDR-01..03, RDR-05, PRG-01)', () => {
   test('scanned pages show a no-text notice', async ({ page }) => {
     await open(page, 'scanned.pdf', /Open Folio Scanned Fixture/);
     await expect(page.getByTestId('no-text-notice')).toBeVisible();
+    // Dismissed once, it stays out of the way for the rest of the book session.
+    await page.getByTestId('no-text-notice').getByRole('button', { name: 'Got it' }).click();
+    await expect(page.getByTestId('no-text-notice')).toBeHidden();
   });
 
   test('view modes: spread, scroll, zoom and rotation keep the position', async ({ page }) => {
@@ -69,6 +72,25 @@ test.describe('reader (RDR-01..03, RDR-05, PRG-01)', () => {
     await page.getByRole('button', { name: 'View and more' }).click();
     await page.getByRole('menuitem', { name: 'Rotate view' }).click();
     await expect(page.getByTestId('page-indicator')).toContainText('2 / 12');
+  });
+
+  test('tablet portrait: a chosen spread shows one page, landscape shows two; panels sit beside the page', async ({ page }) => {
+    await page.setViewportSize({ width: 834, height: 1112 });
+    await open(page, 'text-12p.pdf', /Open Folio Sample Text/);
+    const shown = page.getByTestId('visible-pages').locator('[data-page-index]:not(.folio-prefetch)').filter({ has: page.locator('canvas') });
+    await page.getByRole('button', { name: 'View and more' }).click();
+    await page.getByRole('menuitem', { name: 'Two-page spread' }).click();
+    await page.getByRole('button', { name: 'Next page' }).click();
+    await expect(page.getByTestId('page-indicator')).toContainText('2 / 12');
+    await expect(shown).toHaveCount(1);
+    await page.setViewportSize({ width: 1112, height: 834 });
+    await expect(shown).toHaveCount(2);
+    // Wide reading area: the contents panel takes its own column instead of covering the page.
+    await page.setViewportSize({ width: 834, height: 1112 });
+    await page.getByRole('button', { name: 'Contents' }).click();
+    const panel = await page.getByRole('complementary', { name: 'Contents' }).boundingBox();
+    const pageBox = await shown.first().boundingBox();
+    expect(pageBox!.x).toBeGreaterThanOrEqual(panel!.x + panel!.width - 1);
   });
 
   test('RTL direction swaps arrow keys in paged views', async ({ page }) => {

@@ -215,7 +215,7 @@ export function BottomBar({ store }: { store: ReaderStore }) {
   const n = useReader(store, (s) => s.numPages);
   const current = useReader(store, (s) => s.current);
   const labels = useReader(store, (s) => s.labels);
-  const noText = useReader(store, (s) => s.noText[s.current]);
+  const noText = useReader(store, (s) => s.noText[s.current] && !s.noTextAck);
   const rtl = useReader(store, (s) => s.direction === 'rtl');
   const strokeActive = useReader(store, (s) => s.strokeActive);
   const [jump, setJump] = useState('');
@@ -234,8 +234,11 @@ export function BottomBar({ store }: { store: ReaderStore }) {
   return (
     <footer className="safe-pb z-20 border-t border-line bg-surface/95 px-2 backdrop-blur">
       {noText && (
-        <p className="px-2 pt-1 text-center text-xs text-muted" data-testid="no-text-notice">
-          This page has no selectable text (it may be a scanned image), so it cannot be searched or selected.
+        <p className="flex items-center justify-center gap-2 px-2 pt-1 text-center text-xs text-muted" data-testid="no-text-notice">
+          <span>This page is a scanned image, so its text can’t be searched or selected.</span>
+          <button type="button" className="min-h-8 rounded-lg px-2 font-semibold text-accent hover:bg-surface-2" onClick={() => st.set({ noTextAck: true })}>
+            Got it
+          </button>
         </p>
       )}
       <div className="flex items-center gap-1 py-1" dir={rtl ? 'rtl' : 'ltr'}>
