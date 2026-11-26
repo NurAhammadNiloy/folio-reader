@@ -193,7 +193,19 @@ export function ReaderView({
     window.clearTimeout(saveTimer.current);
     saveTimer.current = window.setTimeout(saveNow, 400);
   }, [saveNow]);
-  useEffect(scheduleSave, [s.current, scheduleSave]);
+  // Paged navigation is a deliberate move: persist it at once so a reload right
+  // after a jump resumes there. Scroll mode changes `current` continuously, so
+  // it stays debounced.
+  const currentPage = s.current;
+  useEffect(() => {
+    void currentPage; // re-run on every page change
+    if (store.getState().viewMode === 'scroll') {
+      scheduleSave();
+      return;
+    }
+    const raf = requestAnimationFrame(saveNow);
+    return () => cancelAnimationFrame(raf);
+  }, [currentPage, scheduleSave, saveNow, store]);
   useEffect(() => {
     const onHide = () => document.visibilityState === 'hidden' && saveNow();
     document.addEventListener('visibilitychange', onHide);
@@ -331,6 +343,7 @@ export function ReaderView({
       >
         <div
           key={spread.join('-')}
+          data-testid="visible-pages"
           className={`flex ${reducedMotion ? '' : 'page-turn'}`}
           style={{ gap: s.viewMode === 'spread' ? 2 : 0, ['--turn-from' as string]: turnFrom }}
           onClick={(e) => {

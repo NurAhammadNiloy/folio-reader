@@ -23,7 +23,15 @@ function OfflineBadge() {
 export function Shell() {
   return (
     <div className="flex h-full flex-col">
-      <a href="#main" className="sr-only-focusable fixed left-2 top-2 z-50 rounded-lg bg-surface px-3 py-2">
+      <a
+        href="#main"
+        className="sr-only-focusable fixed left-2 top-2 z-50 rounded-lg bg-surface px-3 py-2"
+        onClick={(e) => {
+          // HashRouter owns the URL hash, so move focus instead of navigating to "#main".
+          e.preventDefault();
+          document.getElementById('main')?.focus();
+        }}
+      >
         Skip to content
       </a>
       <UpdateBanner />
@@ -55,7 +63,7 @@ export function Shell() {
             <p className="mt-2 px-3 text-xs text-muted">Books and notes stay on this device.</p>
           </div>
         </nav>
-        <main id="main" className="min-w-0 flex-1 overflow-y-auto pb-20 lg:pb-0">
+        <main id="main" tabIndex={-1} className="min-w-0 outline-none flex-1 overflow-y-auto pb-20 lg:pb-0">
           <Outlet />
         </main>
       </div>

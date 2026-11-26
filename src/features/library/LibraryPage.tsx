@@ -202,7 +202,7 @@ export function LibraryPage() {
             </button>
             <label className="ml-auto flex items-center gap-2 text-sm text-muted">
               Sort
-              <select value={sort} onChange={(e) => setSort(e.target.value as Sort)} className="min-h-11 rounded-xl border border-line bg-surface px-2 text-ink">
+              <select aria-label="Sort" value={sort} onChange={(e) => setSort(e.target.value as Sort)} className="min-h-11 rounded-xl border border-line bg-surface px-2 text-ink">
                 <option value="recent">Recent</option>
                 <option value="title">Title</option>
                 <option value="progress">Progress</option>

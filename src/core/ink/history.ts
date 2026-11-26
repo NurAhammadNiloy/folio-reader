@@ -7,7 +7,7 @@ export type InkOp<S> = { kind: 'add'; strokes: S[] } | { kind: 'remove'; strokes
 export class InkHistory<S> {
   private undoStack: InkOp<S>[] = [];
   private redoStack: InkOp<S>[] = [];
-  constructor(private readonly limit = LIMITS.undoLimit) {}
+  constructor(private readonly limit: number = LIMITS.undoLimit) {}
 
   push(op: InkOp<S>) {
     this.undoStack.push(op);

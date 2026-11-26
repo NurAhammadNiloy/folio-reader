@@ -152,6 +152,8 @@ function ReadyReader({
   const chrome = useReader(store, (s) => s.chrome);
   const tool = useReader(store, (s) => s.tool);
   const current = useReader(store, (s) => s.current);
+  const direction = useReader(store, (s) => s.direction);
+  const coverAlone = useReader(store, (s) => s.coverAlone);
   const bookmarks = useLiveQuery(() => getDb().bookmarks.where('bookId').equals(book.id).toArray(), [book.id]) ?? [];
   const pageBookmark = bookmarks.find((b) => b.location.kind === 'pdf' && b.location.pageIndex === current);
   const reducedMotion = prefersReducedMotion(settings);
@@ -288,8 +290,8 @@ function ReadyReader({
                   toast({ kind: 'success', message: `Exported a copy with ${marks} marks. The original is unchanged.` });
                 }),
             },
-            { label: book.direction === 'rtl' ? 'Reading direction: right to left' : 'Reading direction: left to right', onSelect: () => run(() => toggleDirection(book, store)) },
-            { label: store.getState().coverAlone ? 'Spread: show first page with page 2' : 'Spread: show first page alone', onSelect: () => store.getState().set({ coverAlone: !store.getState().coverAlone }) },
+            { label: direction === 'rtl' ? 'Reading direction: right to left' : 'Reading direction: left to right', onSelect: () => run(() => toggleDirection(book, store)) },
+            { label: coverAlone ? 'Spread: show first page with page 2' : 'Spread: show first page alone', onSelect: () => store.getState().set({ coverAlone: !store.getState().coverAlone }) },
           ]}
         />
       )}
