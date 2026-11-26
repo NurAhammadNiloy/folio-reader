@@ -153,6 +153,23 @@ export interface AnnotationRecord {
   updatedAt: number;
 }
 
+/** A mark on the PDF's own text (ANN-03): highlight, underline, or a typed note. */
+export interface TextMarkRecord {
+  id: string;
+  bookId: string;
+  pageIndex: number;
+  kind: 'highlight' | 'underline' | 'note';
+  /** Boxes in PDF user space as [x0, y0, x1, y1]; a note has one box at its anchor. */
+  rects: [number, number, number, number][];
+  color: string;
+  /** The text the mark covers, for lists and search (may be empty). */
+  text: string;
+  /** The typed note (may be empty for a plain highlight). */
+  note: string;
+  createdAt: number;
+  updatedAt: number;
+}
+
 export type NotebookTemplate = 'blank' | 'ruled' | 'grid' | 'dotted';
 
 export interface NotebookRecord {

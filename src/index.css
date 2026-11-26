@@ -435,3 +435,54 @@ dialog {
   inset: 0;
   pointer-events: none;
 }
+
+/* Text marks (ANN-03): painted under the transparent text layer. */
+.marks-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+}
+.text-mark {
+  position: absolute;
+}
+.text-mark-highlight {
+  background: var(--mark);
+  opacity: 0.42;
+  mix-blend-mode: multiply;
+  border-radius: 2px;
+}
+.text-mark-underline {
+  border-bottom: 2px solid var(--mark);
+}
+.text-mark-note {
+  border-bottom: 2px dotted var(--mark);
+}
+.note-pin {
+  position: absolute;
+  z-index: 3;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  margin: -14px 0 0 -6px;
+  border-radius: 8px 8px 8px 2px;
+  background: var(--mark);
+  color: #1f1a10;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.25);
+}
+.note-pin::before {
+  /* 44px touch target without a bigger visual. */
+  content: '';
+  position: absolute;
+  inset: -10px;
+}
+.folio-page.mode-draw .note-pin,
+.folio-page.mode-erase .note-pin {
+  pointer-events: none;
+}
+.selection-bar {
+  position: fixed;
+  z-index: 40;
+}

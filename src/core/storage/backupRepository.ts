@@ -56,6 +56,7 @@ export const BackupRepository = {
           collections,
           memberships,
           annotations: inBooks(await db.annotations.toArray()),
+          textMarks: inBooks(await db.textMarks.toArray()),
           notebooks,
           notebookPages,
           bookmarks: inBooks(await db.bookmarks.toArray()),
@@ -79,6 +80,7 @@ export const BackupRepository = {
       }
       const checks: [string, string[]][] = [
         ['annotations', bundle.data.annotations.map((x) => x.id)],
+        ['textMarks', bundle.data.textMarks.map((x) => x.id)],
         ['notebooks', bundle.data.notebooks.map((x) => x.id)],
         ['notebookPages', bundle.data.notebookPages.map((x) => x.id)],
         ['bookmarks', bundle.data.bookmarks.map((x) => x.id)],
@@ -146,6 +148,7 @@ export const BackupRepository = {
           await db.collections.bulkPut(d.collections);
           await db.memberships.bulkPut(d.memberships);
           await db.annotations.bulkAdd(d.annotations);
+          await db.textMarks.bulkAdd(d.textMarks);
           await db.notebooks.bulkAdd(d.notebooks);
           await db.notebookPages.bulkAdd(d.notebookPages);
           await db.bookmarks.bulkAdd(d.bookmarks);

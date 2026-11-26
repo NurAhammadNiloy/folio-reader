@@ -70,6 +70,26 @@ const dataSchema = z
           .strict(),
       )
       .max(500_000),
+    // Added in schema 2; backups made before it have none.
+    textMarks: z
+      .array(
+        z
+          .object({
+            id: uuid,
+            bookId: uuid,
+            pageIndex: z.number().int().nonnegative(),
+            kind: z.enum(['highlight', 'underline', 'note']),
+            rects: z.array(z.tuple([num, num, num, num])).min(1).max(500),
+            color,
+            text: z.string().max(5000),
+            note: z.string().max(20_000),
+            createdAt: ts,
+            updatedAt: ts,
+          })
+          .strict(),
+      )
+      .max(200_000)
+      .default([]),
     notebooks: z
       .array(
         z
@@ -331,6 +351,10 @@ export async function parseBackup(zip: Uint8Array): Promise<BackupBundle> {
   }
   const onPage = (loc: { kind: 'pdf'; pageIndex: number } | { kind: 'epub'; spineIndex: number }, b: { pageCount: number; format: string }) =>
     loc.kind === b.format && (loc.kind === 'pdf' ? loc.pageIndex : loc.spineIndex) < b.pageCount;
+  for (const m of data.textMarks) {
+    const b = needBook(m.bookId, 'highlights or notes');
+    if (b.format !== 'pdf' || m.pageIndex >= b.pageCount) throw new BackupError('invalid', 'The backup has a highlight or note on a page that does not exist.');
+  }
   for (const bm of data.bookmarks) {
     if (!onPage(bm.location, needBook(bm.bookId, 'a bookmark'))) throw new BackupError('invalid', 'The backup has a bookmark on a page that does not exist.');
   }
@@ -359,6 +383,7 @@ export async function parseBackup(zip: Uint8Array): Promise<BackupBundle> {
   });
   const allIds = [
     ...data.annotations.map((x) => x.id),
+    ...data.textMarks.map((x) => x.id),
     ...data.notebooks.map((x) => x.id),
     ...data.notebookPages.map((x) => x.id),
     ...data.bookmarks.map((x) => x.id),

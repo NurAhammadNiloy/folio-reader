@@ -14,10 +14,11 @@ import type {
   ReadingProgressRecord,
   ReadingSessionRecord,
   SettingRecord,
+  TextMarkRecord,
 } from './types';
 
 export const DB_NAME = 'folio';
-export const SCHEMA_VERSION = 1;
+export const SCHEMA_VERSION = 2;
 
 export class FolioDB extends Dexie {
   books!: EntityTable<BookRecord, 'id'>;
@@ -34,12 +35,13 @@ export class FolioDB extends Dexie {
   settings!: EntityTable<SettingRecord, 'key'>;
   metadata!: EntityTable<MetadataRecord, 'key'>;
   inkCheckpoints!: EntityTable<InkCheckpointRecord, 'id'>;
+  textMarks!: EntityTable<TextMarkRecord, 'id'>;
 
   constructor(name = DB_NAME) {
     super(name);
     // Version 1. Future versions must add explicit, tested upgrade functions;
     // never reset the database automatically (spec 12.4).
-    this.version(SCHEMA_VERSION).stores({
+    this.version(1).stores({
       books: 'id, &hash, title, lastOpenedAt, createdAt',
       bookFiles: 'bookId',
       covers: 'id, bookId',
@@ -55,6 +57,13 @@ export class FolioDB extends Dexie {
       metadata: 'key',
       inkCheckpoints: 'id, bookId',
     });
+    // Version 2: text highlights, underlines and typed notes (ANN-03). Adds a table only;
+    // existing records are kept as they are.
+    this.version(2)
+      .stores({ textMarks: 'id, bookId, [bookId+pageIndex]' })
+      .upgrade(async (tx) => {
+        await tx.table('metadata').put({ key: 'schemaVersion', value: 2 });
+      });
     // Dexie 4 opens a database whose installed version is higher than ours instead of
     // failing. A newer Folio may have changed the meaning of the data, so refuse it.
     this.on('ready', (db) => {
@@ -125,4 +134,5 @@ export const ALL_TABLES = [
   'settings',
   'metadata',
   'inkCheckpoints',
+  'textMarks',
 ] as const;

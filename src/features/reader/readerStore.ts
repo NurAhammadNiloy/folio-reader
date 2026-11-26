@@ -5,7 +5,7 @@ import type { InkStyle, ReadingDirection, ViewMode, ViewerPrefs, ZoomMode } from
 import { LIMITS } from '../../core/security/limits';
 
 export type Tool = 'read' | 'draw' | 'erase';
-export type Panel = null | 'outline' | 'thumbs' | 'search' | 'bookmarks';
+export type Panel = null | 'outline' | 'thumbs' | 'search' | 'bookmarks' | 'marks';
 
 export interface SearchHit {
   pageIndex: number;
@@ -39,6 +39,8 @@ export interface ReaderState {
   search: { query: string; hits: SearchHit[]; active: number; running: boolean; scanned: number };
   noText: Record<number, boolean>;
   turnDir: 1 | -1;
+  /** Text mark open in the editor (ANN-03). */
+  openMark: string | null;
 }
 
 export interface ReaderActions {
@@ -93,6 +95,7 @@ export function createReaderStore(): ReaderStore {
     search: { query: '', hits: [], active: -1, running: false, scanned: 0 },
     noText: {},
     turnDir: 1,
+    openMark: null,
 
     init: (numPages, first, prefs, direction) => {
       const pages: (PageDescriptor | null)[] = new Array(numPages).fill(null);

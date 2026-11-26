@@ -148,6 +148,7 @@ export const LibraryRepository = {
         db.notebooks,
         db.notebookPages,
         db.inkCheckpoints,
+        db.textMarks,
       ],
       async () => {
         const book = await db.books.get(bookId);
@@ -160,6 +161,7 @@ export const LibraryRepository = {
         await db.readingProgress.delete(bookId);
         await db.readingSessions.where('bookId').equals(bookId).delete();
         await db.inkCheckpoints.where('bookId').equals(bookId).delete();
+        await db.textMarks.where('bookId').equals(bookId).delete();
         const notebooks = await db.notebooks.where('linkedBookId').equals(bookId).toArray();
         if (mode === 'delete-associated') {
           for (const nb of notebooks) {
