@@ -34,6 +34,8 @@ export function useReaderDocument(bookId: string, store: ReaderStore, attempt: n
   useEffect(() => {
     let disposed = false;
     let opened: OpenedPdf | null = null;
+    // An open password prompt holds the loading task; leaving must cancel it, or PDF.js keeps its worker.
+    let pendingPassword: ((pw: string | null) => void) | null = null;
     setState({ kind: 'loading' });
     (async () => {
       const book = await LibraryRepository.get(bookId);
@@ -55,7 +57,16 @@ export function useReaderDocument(bookId: string, store: ReaderStore, attempt: n
         opened = await openPdf(bytes, (reason) =>
           new Promise<string | null>((resolve) => {
             if (disposed) return resolve(null);
-            setState({ kind: 'password', book, reason, submit: resolve });
+            pendingPassword = resolve;
+            setState({
+              kind: 'password',
+              book,
+              reason,
+              submit: (pw) => {
+                pendingPassword = null;
+                resolve(pw);
+              },
+            });
           }),
         );
       } catch (err) {
@@ -92,6 +103,8 @@ export function useReaderDocument(bookId: string, store: ReaderStore, attempt: n
     });
     return () => {
       disposed = true;
+      pendingPassword?.(null);
+      pendingPassword = null;
       if (opened) void opened.destroy();
     };
   }, [bookId, store, attempt]);

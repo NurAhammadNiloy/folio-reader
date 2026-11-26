@@ -19,6 +19,7 @@ import { useBookInk } from '../ink/useBookInk';
 import { downloadOriginal, exportAnnotated } from '../export/bookActions';
 import type { BookRecord, ReadingProgressRecord } from '../../core/storage/types';
 import type { OpenedPdf } from '../../core/documents/pdfEngine';
+import { activePane, setActivePane } from '../study/activePane';
 
 const EpubReaderLazy = lazy(() => import('../epub/EpubReader').then((m) => ({ default: m.EpubReader })));
 
@@ -222,6 +223,8 @@ function ReadyReader({
     const onKey = (e: KeyboardEvent) => {
       const t = e.target as HTMLElement;
       if (t.closest('input, textarea, select, [contenteditable="true"], dialog[open]')) return;
+      // In Study view, shortcuts belong to the pane last used.
+      if (activePane() === 'notebook' || t.closest('[data-testid="notebook"]')) return;
       const st = store.getState();
       const rtl = st.direction === 'rtl';
       const fwd = () => st.next();
@@ -294,7 +297,7 @@ function ReadyReader({
   const showChrome = chrome || tool !== 'read' || !!panel;
 
   return (
-    <div className="flex h-full flex-col bg-[var(--reader-bg)]" data-testid="reader">
+    <div className="flex h-full flex-col bg-[var(--reader-bg)]" data-testid="reader" onPointerDownCapture={() => setActivePane('book')} onFocusCapture={() => setActivePane('book')}>
       {showChrome && (
         <TopBar
           book={book}

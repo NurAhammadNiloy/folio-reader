@@ -9,8 +9,12 @@ import { useReader, type ReaderStore } from './readerStore';
 import type { BookInk } from '../ink/useBookInk';
 import type { BookRecord } from '../../core/storage/types';
 
+/** Last effective scale published by the reader view (survives toolbar remounts). */
+let lastScale = 1;
+if (typeof window !== 'undefined') window.addEventListener('folio:scale', (e) => (lastScale = (e as CustomEvent<number>).detail));
+
 export function useEffectiveScale() {
-  const [scale, setScale] = useState(1);
+  const [scale, setScale] = useState(() => lastScale);
   useEffect(() => {
     const on = (e: Event) => setScale((e as CustomEvent<number>).detail);
     window.addEventListener('folio:scale', on);

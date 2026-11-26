@@ -188,6 +188,15 @@ export function SearchPanel({ doc, store, onClose }: { doc: PDFDocumentProxy; st
   const runId = useRef(0);
   const input = useRef<HTMLInputElement>(null);
   useEffect(() => input.current?.focus(), []);
+  // Closing the panel stops a running search, so it cannot jump the reader later.
+  useEffect(
+    () => () => {
+      runId.current++;
+      const cur = store.getState().search;
+      if (cur.running) store.getState().set({ search: { ...cur, running: false } });
+    },
+    [store],
+  );
 
   async function run(query: string) {
     const id = ++runId.current;
