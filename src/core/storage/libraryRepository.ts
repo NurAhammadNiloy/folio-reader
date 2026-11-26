@@ -2,9 +2,11 @@ import { getDb } from './db';
 import { mutate } from './mutate';
 import { StorageError } from './errors';
 import { newId } from './ids';
-import type { BookFileRecord, BookRecord, CollectionRecord, CoverRecord, MembershipRecord } from './types';
+import type { BookFileRecord, BookFormat, BookRecord, CollectionRecord, CoverRecord, MembershipRecord, ReadingDirection } from './types';
 
 export interface NewBookInput {
+  format?: BookFormat;
+  direction?: ReadingDirection;
   title: string;
   author: string;
   hash: string;
@@ -49,13 +51,13 @@ export const LibraryRepository = {
     const coverId = input.cover ? newId() : null;
     const book: BookRecord = {
       id,
-      format: 'pdf',
+      format: input.format ?? 'pdf',
       title: input.title,
       author: input.author,
       hash: input.hash,
       coverId,
       pageCount: input.pageCount,
-      direction: 'ltr',
+      direction: input.direction ?? 'ltr',
       fileName: input.fileName,
       fileSize: input.file.size,
       encrypted: input.encrypted,

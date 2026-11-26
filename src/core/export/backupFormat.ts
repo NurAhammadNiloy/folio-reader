@@ -23,14 +23,14 @@ const style = z
   .object({ tool: z.enum(['pen', 'highlighter']), color, width: num.positive().max(200), opacity: num.min(0).max(1) })
   .strict();
 const pdfLoc = z.object({ kind: z.literal('pdf'), pageIndex: z.number().int().nonnegative(), xFraction: num.min(0).max(1), yFraction: num.min(0).max(1) }).strict();
-const epubLoc = z.object({ kind: z.literal('epub'), cfi: z.string().max(2000) }).strict();
+const epubLoc = z.object({ kind: z.literal('epub'), spineIndex: z.number().int().nonnegative().max(LIMITS.maxPdfPages), fraction: num.min(0).max(1) }).strict();
 const location = z.discriminatedUnion('kind', [pdfLoc, epubLoc]);
 const outline = z.array(z.tuple([num, num])).max(200_000);
 
 export const bookSchema = z
   .object({
     id: uuid,
-    format: z.literal('pdf'),
+    format: z.enum(['pdf', 'epub']),
     title: z.string().min(1).max(1000),
     author: z.string().max(1000),
     hash: hex64,
@@ -152,7 +152,11 @@ export interface BackupBundle {
   expandedBytes: number;
 }
 
-const ENTRY_RE = /^(manifest\.json|data\.json|files\/[0-9a-f-]{36}\.pdf|covers\/[0-9a-f-]{36}\.(webp|png|jpg))$/i;
+const ENTRY_RE = /^(manifest\.json|data\.json|files\/[0-9a-f-]{36}\.(pdf|epub)|covers\/[0-9a-f-]{36}\.(webp|png|jpg))$/i;
+
+export function bookFilePath(bookId: string, format: 'pdf' | 'epub') {
+  return `files/${bookId}.${format}`;
+}
 
 export function isSafeEntryName(name: string): boolean {
   if (name.length > 200) return false;
@@ -184,7 +188,8 @@ export async function buildBackup(input: ExportInput, now = Date.now()): Promise
     entries.push({ path, size: bytes.length, sha256: await sha256Hex(bytes) });
     zippable[path] = [bytes, { level: compress ? 6 : 0 }];
   };
-  for (const [bookId, blob] of input.files) await add(`files/${bookId}.pdf`, new Uint8Array(await blob.arrayBuffer()), false);
+  const formatOf = new Map(input.data.books.map((b) => [b.id, b.format]));
+  for (const [bookId, blob] of input.files) await add(bookFilePath(bookId, formatOf.get(bookId) ?? 'pdf'), new Uint8Array(await blob.arrayBuffer()), false);
   const coverList: BackupData['covers'] = [];
   for (const [coverId, c] of input.covers) {
     const path = `covers/${coverId}.${coverExt(c.blob.type)}`;
@@ -296,11 +301,11 @@ export async function parseBackup(zip: Uint8Array): Promise<BackupBundle> {
   const files = new Map<string, Uint8Array>();
   const books = new Map(data.books.map((b) => [b.id, b]));
   if (books.size !== data.books.length) throw new BackupError('invalid', 'The backup contains duplicate books.');
-  if (new Set(data.books.map((b) => b.hash)).size !== data.books.length) throw new BackupError('invalid', 'The backup contains the same PDF twice.');
+  if (new Set(data.books.map((b) => b.hash)).size !== data.books.length) throw new BackupError('invalid', 'The backup contains the same book twice.');
   for (const b of data.books) {
-    const bytes = entries.get(`files/${b.id}.pdf`);
-    if (!bytes) throw new BackupError('corrupt', `The original PDF for “${b.title}” is missing from the backup.`);
-    if ((await sha256Hex(bytes)) !== b.hash) throw new BackupError('corrupt', `The original PDF for “${b.title}” does not match its checksum.`);
+    const bytes = entries.get(bookFilePath(b.id, b.format));
+    if (!bytes) throw new BackupError('corrupt', `The original file for “${b.title}” is missing from the backup.`);
+    if ((await sha256Hex(bytes)) !== b.hash) throw new BackupError('corrupt', `The original file for “${b.title}” does not match its checksum.`);
     files.set(b.id, bytes);
   }
   const covers = new Map<string, { bytes: Uint8Array; type: string }>();

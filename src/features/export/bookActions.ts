@@ -7,11 +7,12 @@ import type { BookRecord } from '../../core/storage/types';
 export async function downloadOriginal(book: BookRecord) {
   const file = await LibraryRepository.getFile(book.id);
   if (!file) throw new Error('The original file for this book is missing. Re-import it or restore a backup.');
-  download(file.blob, book.fileName || `${safeFileName(book.title)}.pdf`);
+  download(file.blob, book.fileName || `${safeFileName(book.title)}.${book.format}`);
 }
 
 /** Export a copy with ink marks. The stored original is read, never modified. */
 export async function exportAnnotated(book: BookRecord): Promise<{ marks: number }> {
+  if (book.format !== 'pdf') throw new Error('Annotated export is available for PDF books. For EPUB books, export a Folio backup to keep your notes.');
   if (book.encrypted)
     throw new Error('Annotated export is not supported for password-protected PDFs. Download the original or a Folio backup instead.');
   const file = await LibraryRepository.getFile(book.id);

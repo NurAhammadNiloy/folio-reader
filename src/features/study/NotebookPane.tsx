@@ -244,6 +244,8 @@ function NotebookPageView(p: {
   const h = page.height * scale;
   const link = page.link;
   const linkTitle = link ? p.bookTitles.get(link.bookId) : undefined;
+  const formats = useBookFormats();
+  const unit = link && formats.get(link.bookId) === 'epub' ? 'section' : 'page';
   const inkMode = p.tool === 'draw' ? 'draw' : p.tool === 'erase' ? 'erase' : 'read';
   return (
     <section aria-label={`Notebook page ${p.index + 1}`} className="flex flex-col gap-1">
@@ -252,7 +254,7 @@ function NotebookPageView(p: {
         {link ? (
           linkTitle ? (
             <button type="button" className="inline-flex min-h-11 items-center gap-1 rounded-lg px-2 text-accent hover:bg-surface" onClick={() => p.onJump?.(link.bookId, link.pageIndex)}>
-              <Link2 size={14} aria-hidden /> {linkTitle}, page {link.pageIndex + 1}
+              <Link2 size={14} aria-hidden /> {linkTitle}, {unit} {link.pageIndex + 1}
             </button>
           ) : (
             <span className="inline-flex min-h-11 items-center gap-1 px-2 text-danger">
@@ -267,7 +269,7 @@ function NotebookPageView(p: {
             className="inline-flex min-h-11 items-center gap-1 rounded-lg px-2 hover:bg-surface"
             onClick={() => p.onSave({ ...page, link: { bookId: p.linkedBookId!, pageIndex: p.currentBookPage! } })}
           >
-            <Link2 size={14} aria-hidden /> Link to book page {p.currentBookLabel ?? p.currentBookPage + 1}
+            <Link2 size={14} aria-hidden /> Link to book {p.linkedBookId && formats.get(p.linkedBookId) === 'epub' ? 'section' : 'page'} {p.currentBookLabel ?? p.currentBookPage + 1}
           </button>
         )}
         {link && !p.readOnly && (
@@ -367,6 +369,11 @@ function TextBlockEditor({ block, scale, onChange, onDelete, readOnly, interacti
       )}
     </div>
   );
+}
+
+export function useBookFormats() {
+  const books = useLiveQuery(() => getDb().books.toArray(), []);
+  return useMemo(() => new Map((books ?? []).map((b) => [b.id, b.format])), [books]);
 }
 
 export function useBookTitles() {

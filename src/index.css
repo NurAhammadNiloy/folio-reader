@@ -263,3 +263,144 @@ dialog {
   background-image: radial-gradient(rgb(110 120 130 / 0.5) 1px, transparent 1.2px);
   background-size: calc(var(--u) * 20) calc(var(--u) * 20);
 }
+
+/* ---------------- EPUB reflowable content ---------------- */
+.epub-content {
+  color: var(--color-ink);
+  overflow-wrap: break-word;
+  font-kerning: normal;
+  font-variant-ligatures: common-ligatures;
+  -webkit-text-size-adjust: 100%;
+}
+.epub-turn {
+  transition: transform 320ms cubic-bezier(0.22, 0.61, 0.36, 1);
+  will-change: transform;
+}
+.epub-justify p,
+.epub-justify li {
+  text-align: justify;
+  hyphens: auto;
+  -webkit-hyphens: auto;
+}
+.epub-content p {
+  margin: 0 0 0.85em;
+  orphans: 2;
+  widows: 2;
+}
+.epub-content p + p {
+  text-indent: 0;
+}
+.epub-content h1,
+.epub-content h2,
+.epub-content h3,
+.epub-content h4 {
+  font-family: var(--font-serif);
+  font-weight: 600;
+  line-height: 1.25;
+  margin: 1.4em 0 0.6em;
+  break-after: avoid;
+  text-align: start;
+  hyphens: manual;
+}
+.epub-content h1 {
+  font-size: 1.6em;
+  margin-top: 0.4em;
+  letter-spacing: -0.01em;
+}
+.epub-content h2 {
+  font-size: 1.3em;
+}
+.epub-content h3 {
+  font-size: 1.12em;
+}
+.epub-content img {
+  display: block;
+  max-width: 100%;
+  max-height: 85vh;
+  height: auto;
+  margin: 1em auto;
+  border-radius: 4px;
+  break-inside: avoid;
+}
+.epub-content figure {
+  margin: 1.2em 0;
+  break-inside: avoid;
+}
+.epub-content figcaption {
+  font-size: 0.85em;
+  color: var(--color-muted);
+  text-align: center;
+}
+.epub-content blockquote {
+  margin: 1em 0;
+  padding-inline-start: 1em;
+  border-inline-start: 3px solid var(--color-line);
+  color: var(--color-muted);
+}
+.epub-content pre,
+.epub-content code {
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 0.88em;
+}
+.epub-content pre {
+  white-space: pre-wrap;
+  background: var(--color-surface-2);
+  padding: 0.75em;
+  border-radius: 6px;
+}
+.epub-content table {
+  border-collapse: collapse;
+  margin: 1em 0;
+  font-size: 0.9em;
+  break-inside: avoid;
+}
+.epub-content td,
+.epub-content th {
+  border: 1px solid var(--color-line);
+  padding: 0.3em 0.5em;
+}
+.epub-content hr {
+  border: 0;
+  border-top: 1px solid var(--color-line);
+  margin: 1.5em 20%;
+}
+.epub-content ul,
+.epub-content ol {
+  padding-inline-start: 1.4em;
+  margin: 0 0 0.85em;
+}
+.epub-content [data-spine],
+.epub-content [data-external-url] {
+  color: var(--color-accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+.epub-content [data-external-url]::after {
+  content: ' ↗';
+  font-size: 0.8em;
+}
+.epub-content [data-epub-type~='noteref'] {
+  font-size: 0.75em;
+  vertical-align: super;
+  text-decoration: none;
+}
+.epub-content aside[data-epub-type~='footnote'] {
+  font-size: 0.85em;
+  color: var(--color-muted);
+  border-top: 1px solid var(--color-line);
+  padding-top: 0.5em;
+  margin-top: 1.5em;
+}
+.epub-content mark.folio-hit {
+  background: rgb(240 190 40 / 0.45);
+  color: inherit;
+  border-radius: 2px;
+}
+.epub-content mark.folio-hit.active {
+  background: rgb(65 108 87 / 0.45);
+  outline: 2px solid rgb(65 108 87 / 0.9);
+}
+.reduce-motion .epub-turn {
+  transition: none;
+}

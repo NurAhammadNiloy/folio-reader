@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { Suspense, lazy, useCallback, useEffect, useRef, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { Link } from 'react-router-dom';
 import { AlertTriangle, FileX2, Lock } from 'lucide-react';
@@ -20,7 +20,33 @@ import { downloadOriginal, exportAnnotated } from '../export/bookActions';
 import type { BookRecord, ReadingProgressRecord } from '../../core/storage/types';
 import type { OpenedPdf } from '../../core/documents/pdfEngine';
 
-export function ReaderScreen({
+const EpubReaderLazy = lazy(() => import('../epub/EpubReader').then((m) => ({ default: m.EpubReader })));
+
+/** Chooses the PDF or EPUB reader from the stored book's format. */
+export function ReaderScreen(props: { bookId: string; store: ReaderStore; onBack?: () => void; onStudy?: () => void; embedded?: boolean }) {
+  const format = useLiveQuery(() => getDb().books.get(props.bookId).then((b) => b?.format ?? 'pdf'), [props.bookId]);
+  if (format === undefined)
+    return (
+      <div className="flex h-full items-center justify-center bg-[var(--reader-bg)]">
+        <Spinner label="Opening book…" />
+      </div>
+    );
+  if (format === 'epub')
+    return (
+      <Suspense
+        fallback={
+          <div className="flex h-full items-center justify-center bg-[var(--reader-bg)]">
+            <Spinner label="Opening book…" />
+          </div>
+        }
+      >
+        <EpubReaderLazy {...props} />
+      </Suspense>
+    );
+  return <PdfReaderScreen {...props} />;
+}
+
+function PdfReaderScreen({
   bookId,
   store,
   onBack,

@@ -212,6 +212,113 @@ try {
   console.warn('Skipped unicode.pdf (Playwright Chromium unavailable):', err.message);
 }
 
+// ---------------- EPUB fixtures (synthetic) ----------------
+{
+  const { zipSync, strToU8 } = await import('fflate');
+  const solidPng = (w, h, [r, g, b]) => {
+    const row = Buffer.alloc(1 + w * 3);
+    for (let x = 0; x < w; x++) { row[1 + x * 3] = r; row[2 + x * 3] = g; row[3 + x * 3] = b; }
+    return makePng(w, h, Buffer.concat(Array.from({ length: h }, () => row)));
+  };
+  const xhtml = (title, body, extraHead = '') => `<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" lang="en">
+<head><title>${title}</title><link rel="stylesheet" href="../styles/book.css"/>${extraHead}</head>
+<body>${body}</body></html>`;
+  const para = (n, words = 'Reading and study workspace sample paragraph text for the reflowable fixture.') =>
+    Array.from({ length: n }, (_, i) => `<p>Paragraph ${i + 1}. ${words} ${words}</p>`).join('\n');
+  const build = (name, { title, author, chapters, extraFiles = {}, spineAttrs = '', lang = 'en', encryption }) => {
+    const manifest = chapters.map((c, i) => `<item id="c${i + 1}" href="text/ch${i + 1}.xhtml" media-type="application/xhtml+xml"/>`).join('\n    ');
+    const spine = chapters.map((_, i) => `<itemref idref="c${i + 1}"/>`).join('');
+    const navList = chapters.map((c, i) => `<li><a href="text/ch${i + 1}.xhtml">${c.title}</a>${c.sub ? `<ol><li><a href="text/ch${i + 1}.xhtml#${c.sub.id}">${c.sub.title}</a></li></ol>` : ''}</li>`).join('');
+    const files = {
+      mimetype: [strToU8('application/epub+zip'), { level: 0 }],
+      'META-INF/container.xml': strToU8(`<?xml version="1.0"?><container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container"><rootfiles><rootfile full-path="OEBPS/content.opf" media-type="application/oebps-package+xml"/></rootfiles></container>`),
+      'OEBPS/content.opf': strToU8(`<?xml version="1.0" encoding="utf-8"?>
+<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="uid" xml:lang="${lang}">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <dc:identifier id="uid">urn:uuid:00000000-0000-4000-8000-${String(name.length).padStart(12, '0')}</dc:identifier>
+    <dc:title>${title}</dc:title><dc:creator>${author}</dc:creator><dc:language>${lang}</dc:language>
+    <meta property="dcterms:modified">2026-01-01T00:00:00Z</meta>
+  </metadata>
+  <manifest>
+    <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>
+    <item id="css" href="styles/book.css" media-type="text/css"/>
+    <item id="cover" href="images/cover.png" media-type="image/png" properties="cover-image"/>
+    <item id="fig" href="images/figure.png" media-type="image/png"/>
+    ${manifest}
+  </manifest>
+  <spine${spineAttrs}>${spine}</spine>
+</package>`),
+      'OEBPS/nav.xhtml': strToU8(xhtml('Contents', `<nav epub:type="toc"><h1>Contents</h1><ol>${navList}</ol></nav>`)),
+      'OEBPS/styles/book.css': strToU8('body { background: url(https://example.invalid/bg.png); color: red; } p { margin: 0 }'),
+      'OEBPS/images/cover.png': solidPng(120, 180, [40, 70, 120]),
+      'OEBPS/images/figure.png': solidPng(200, 80, [200, 120, 40]),
+      ...extraFiles,
+    };
+    chapters.forEach((c, i) => (files[`OEBPS/text/ch${i + 1}.xhtml`] = strToU8(xhtml(c.title, c.body))));
+    if (encryption) files['META-INF/encryption.xml'] = strToU8(encryption);
+    writeFileSync(join(out, name), zipSync(files, { mtime: FIXED_DATE }));
+  };
+
+  build('sample.epub', {
+    title: 'Folio Sample EPUB',
+    author: 'Folio Test Author',
+    chapters: [
+      { title: 'Chapter One', body: `<h1>Chapter One</h1><p class="first">The first chapter of the <em>synthetic</em> EPUB fixture. Searchable marker: quasar1</p>${para(8)}<p><a href="ch3.xhtml#later">Jump to the later section</a></p>` },
+      {
+        title: 'Chapter Two',
+        sub: { id: 'figure', title: 'A figure' },
+        body: `<h1>Chapter Two</h1>${para(4)}<figure id="figure"><img src="../images/figure.png" alt="Orange test figure"/><figcaption>Figure 1. An orange rectangle.</figcaption></figure><p>See note<a epub:type="noteref" href="#n1">1</a>. External <a href="https://example.com/">example link</a>. Searchable marker: quasar2</p><aside epub:type="footnote" id="n1"><p>1. A footnote.</p></aside>${para(6)}`,
+      },
+      { title: 'Chapter Three', body: `<h1>Chapter Three</h1>${para(30)}<h2 id="later">Later section</h2><p style="text-align:center;font-style:italic;background:url(https://example.invalid/x.png)">Centered italic line. Searchable marker: quasar3</p>${para(30)}` },
+    ],
+  });
+
+  build('hostile.epub', {
+    title: 'Folio Hostile EPUB',
+    author: 'Folio Test Author',
+    chapters: [
+      {
+        title: 'Hostile',
+        body: `<h1>Hostile chapter</h1>
+<script>window.__folioHacked = 1; alert(1)</script>
+<p onclick="window.__folioHacked=2" onmouseover="window.__folioHacked=3">Paragraph with event handlers.</p>
+<img src="https://example.invalid/tracker.png" alt="remote image"/>
+<img src="x" onerror="window.__folioHacked=4"/>
+<iframe src="https://example.invalid/"></iframe>
+<object data="https://example.invalid/x.swf"></object>
+<form action="https://example.invalid/"><input name="q"/></form>
+<p><a href="javascript:window.__folioHacked=5">javascript link</a></p>
+<p><a href="data:text/html,&lt;script&gt;alert(1)&lt;/script&gt;">data link</a></p>
+<svg xmlns="http://www.w3.org/2000/svg"><script>window.__folioHacked=6</script><foreignObject><p>svg text</p></foreignObject></svg>
+<p style="background-image:url(https://example.invalid/bg.png);color:red">Styled paragraph.</p>
+<link rel="stylesheet" href="https://example.invalid/evil.css"/>
+<style>@import url(https://example.invalid/i.css); body{background:url(https://example.invalid/b.png)}</style>
+<p>Safe text survives. Searchable marker: hostile1</p>`,
+      },
+    ],
+  });
+
+  build('drm.epub', {
+    title: 'Folio DRM EPUB',
+    author: 'Folio Test Author',
+    chapters: [{ title: 'Locked', body: '<p>Not really encrypted, but declared so.</p>' }],
+    encryption: `<?xml version="1.0"?><encryption xmlns="urn:oasis:names:tc:opendocument:xmlns:container" xmlns:enc="http://www.w3.org/2001/04/xmlenc#"><enc:EncryptedData><enc:EncryptionMethod Algorithm="http://www.w3.org/2001/04/xmlenc#aes128-cbc"/><enc:CipherData><enc:CipherReference URI="OEBPS/text/ch1.xhtml"/></enc:CipherData></enc:EncryptedData></encryption>`,
+  });
+
+  build('rtl.epub', {
+    title: 'Folio RTL EPUB',
+    author: 'Folio Test Author',
+    lang: 'ar',
+    spineAttrs: ' page-progression-direction="rtl"',
+    chapters: [
+      { title: 'الفصل الأول', body: `<h1 dir="rtl">الفصل الأول</h1><p dir="rtl">مرحبا بالعالم. هذا نص تجريبي.</p>${para(20)}` },
+      { title: 'الفصل الثاني', body: `<h1 dir="rtl">الفصل الثاني</h1>${para(20)}` },
+    ],
+  });
+}
+
 console.log('Fixtures written to', out);
 
 function makePng(w, h, rawRows) {

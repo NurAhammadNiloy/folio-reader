@@ -1,7 +1,7 @@
 // Durable record types. Section 7 + 12.4 of docs/PRODUCT_SPEC.md are authoritative.
 // All timestamps are UTC epoch milliseconds. PDF page indexes are zero-based.
 
-export type BookFormat = 'pdf';
+export type BookFormat = 'pdf' | 'epub';
 export type ReadingDirection = 'ltr' | 'rtl';
 
 export interface PdfLocation {
@@ -12,10 +12,11 @@ export interface PdfLocation {
   /** Vertical position within the page, 0..1. */
   yFraction: number;
 }
-/** Future EPUB location; declared so stored data stays a discriminated union. */
+/** Reflowable position: spine (chapter) index plus progress through it, 0..1. */
 export interface EpubLocation {
   kind: 'epub';
-  cfi: string;
+  spineIndex: number;
+  fraction: number;
 }
 export type BookLocation = PdfLocation | EpubLocation;
 

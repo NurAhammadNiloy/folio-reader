@@ -1,4 +1,4 @@
-import { ImportError, assertPageCount, assertPdfSignature, precheckFile } from '../../core/security/validatePdf';
+import { ImportError, assertPageCount, assertPdfSignature, hasPdfSignature, precheckFile } from '../../core/security/validatePdf';
 import { sha256Hex } from '../../core/security/hash';
 import { LibraryRepository } from '../../core/storage/libraryRepository';
 import { StorageError } from '../../core/storage/errors';
@@ -15,7 +15,7 @@ export type ImportResult =
 export type PasswordAsk = (fileName: string, reason: 'required' | 'incorrect') => Promise<string | null>;
 
 function titleFromFileName(name: string) {
-  return name.replace(/\.pdf$/i, '').replace(/[_]+/g, ' ').trim() || 'Untitled';
+  return name.replace(/\.(pdf|epub)$/i, '').replace(/[_]+/g, ' ').trim() || 'Untitled';
 }
 
 /**
@@ -23,12 +23,19 @@ function titleFromFileName(name: string) {
  * memory only), extract metadata and cover, then commit atomically. A failed or
  * cancelled import never creates a library record (LIB-01).
  */
+export const importBook = (file: File, askPassword: PasswordAsk) => importPdf(file, askPassword);
+
 export async function importPdf(file: File, askPassword: PasswordAsk): Promise<ImportResult> {
   const end = beginWrite(); // blocks update reloads during the import job
   try {
     if (!canWrite()) throw new ImportError('read-only', 'This tab is read-only because Folio is open in another tab.');
     precheckFile(file);
     const bytes = new Uint8Array(await file.arrayBuffer());
+    // Content decides the format, never the extension or MIME type.
+    if (!hasPdfSignature(bytes)) {
+      const { hasZipSignature } = await import('../../core/documents/epubEngine');
+      if (hasZipSignature(bytes)) return await importEpubBytes(file, bytes);
+    }
     assertPdfSignature(file.name, bytes);
     const hash = await sha256Hex(bytes);
     const existing = await LibraryRepository.findByHash(hash);
@@ -74,4 +81,32 @@ export async function importPdf(file: File, askPassword: PasswordAsk): Promise<I
   } finally {
     end();
   }
+}
+
+async function importEpubBytes(file: File, bytes: Uint8Array): Promise<ImportResult> {
+  const hash = await sha256Hex(bytes);
+  const existing = await LibraryRepository.findByHash(hash);
+  if (existing) return { status: 'duplicate', book: existing };
+  const { parseEpub, epubCover, EpubError } = await import('../../core/documents/epubEngine');
+  let parsed;
+  try {
+    parsed = parseEpub(bytes);
+  } catch (err) {
+    const why = err instanceof EpubError ? err.message : 'The file may be damaged.';
+    throw new ImportError('malformed', `“${file.name}” could not be opened as an EPUB. ${why}`, { cause: err });
+  }
+  const book = await LibraryRepository.addBook({
+    format: 'epub',
+    direction: parsed.meta.direction,
+    title: parsed.meta.title || titleFromFileName(file.name),
+    author: parsed.meta.author,
+    hash,
+    pageCount: parsed.spine.length,
+    fileName: file.name,
+    encrypted: false,
+    file: new Blob([bytes as BlobPart], { type: 'application/epub+zip' }),
+    mime: 'application/epub+zip',
+    cover: await epubCover(parsed),
+  });
+  return { status: 'imported', book };
 }

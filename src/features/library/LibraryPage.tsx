@@ -7,7 +7,7 @@ import { Button, cx } from '../../components/ui';
 import { useApp } from '../../app/appStore';
 import { BookCard, ContinueCard } from './BookCard';
 import { ImportPanel, type ImportItem } from './ImportPanel';
-import { importPdf } from './importBooks';
+import { importBook } from './importBooks';
 import { PasswordDialog, usePasswordPrompt } from './PasswordDialog';
 import { CollectionManagerDialog } from './dialogs';
 import type { BookRecord, ReadingProgressRecord } from '../../core/storage/types';
@@ -70,7 +70,7 @@ export function LibraryPage() {
       const file = queue.current.shift()!;
       const key = `${file.name}-${file.size}-${file.lastModified}-${Math.random()}`;
       setItems((s) => [...s, { key, name: file.name, state: 'working' }]);
-      const result = await importPdf(file, pw.ask);
+      const result = await importBook(file, pw.ask);
       setItems((s) => s.map((it) => (it.key === key ? { ...it, state: 'done', result } : it)));
     }
     busy.current = false;
@@ -110,7 +110,7 @@ export function LibraryPage() {
       <input
         ref={input}
         type="file"
-        accept="application/pdf,.pdf"
+        accept="application/pdf,.pdf,application/epub+zip,.epub"
         multiple
         className="hidden"
         data-testid="import-input"
@@ -135,7 +135,7 @@ export function LibraryPage() {
           </label>
         )}
         <Button variant="primary" icon={<FilePlus2 size={18} aria-hidden />} onClick={() => input.current?.click()} disabled={readOnly}>
-          Import PDF
+          Import book
         </Button>
       </header>
 
@@ -148,10 +148,10 @@ export function LibraryPage() {
           <img src="./icons/icon-192.png" alt="" className="mx-auto mb-4 h-14 w-14 rounded-2xl" />
           <h2 className="mb-2 font-serif text-2xl font-semibold">Your bookshelf is empty</h2>
           <p className="mb-6 text-muted">
-            Import a PDF to start reading. Folio works without an account and keeps your books, marks and notes on this device only.
+            Import a PDF or EPUB to start reading. Folio works without an account and keeps your books, marks and notes on this device only.
           </p>
           <Button variant="primary" icon={<FilePlus2 size={18} aria-hidden />} onClick={() => input.current?.click()} disabled={readOnly}>
-            Import your first PDF
+            Import your first book
           </Button>
           <ul className="mt-6 space-y-2 text-left text-sm text-muted">
             <li className="flex gap-2">
@@ -160,7 +160,7 @@ export function LibraryPage() {
             </li>
             <li className="flex gap-2">
               <Upload size={16} className="mt-0.5 flex-none text-accent" aria-hidden />
-              Supported: PDF files up to 100 MB and 2,000 pages. EPUB is not supported yet.
+              Supported: PDF and EPUB files up to 100 MB. PDFs up to 2,000 pages. DRM-protected books cannot be opened.
             </li>
           </ul>
         </section>
@@ -226,7 +226,7 @@ export function LibraryPage() {
 
       {dragging && (
         <div className="pointer-events-none fixed inset-0 z-40 flex items-center justify-center bg-accent/15 backdrop-blur-sm">
-          <div className="rounded-2xl border-2 border-dashed border-accent bg-surface px-8 py-6 text-lg font-medium">Drop PDF files to import</div>
+          <div className="rounded-2xl border-2 border-dashed border-accent bg-surface px-8 py-6 text-lg font-medium">Drop PDF or EPUB files to import</div>
         </div>
       )}
       <PasswordDialog prompt={pw} />

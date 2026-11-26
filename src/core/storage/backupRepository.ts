@@ -135,7 +135,8 @@ export const BackupRepository = {
           await db.books.bulkAdd(d.books);
           for (const [bookId, bytes] of bundle.files) {
             const book = d.books.find((b) => b.id === bookId)!;
-            await db.bookFiles.add({ bookId, blob: new Blob([bytes as Uint8Array<ArrayBuffer>], { type: 'application/pdf' }), mime: 'application/pdf', size: bytes.length, checksum: book.hash });
+            const mime = book.format === 'epub' ? 'application/epub+zip' : 'application/pdf';
+            await db.bookFiles.add({ bookId, blob: new Blob([bytes as Uint8Array<ArrayBuffer>], { type: mime }), mime, size: bytes.length, checksum: book.hash });
           }
           for (const c of d.covers) {
             const cov = bundle.covers.get(c.id)!;

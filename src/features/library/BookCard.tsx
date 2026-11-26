@@ -34,14 +34,15 @@ function Cover({ book, className }: { book: BookRecord; className?: string }) {
 export function positionText(book: BookRecord, p: ReadingProgressRecord | undefined) {
   if (p?.completedAt) return 'Completed';
   const loc = p?.lastLocation;
-  if (!loc || loc.kind !== 'pdf') return 'Not started';
+  if (!loc) return 'Not started';
+  if (loc.kind === 'epub') return `Section ${loc.spineIndex + 1} of ${book.pageCount}`;
   return `Page ${loc.pageIndex + 1} of ${book.pageCount}`;
 }
 
 export function viewedText(book: BookRecord, p: ReadingProgressRecord | undefined) {
   const n = p?.qualifiedPages.length ?? 0;
   if (!n) return null;
-  return `${Math.round((n / book.pageCount) * 100)}% of pages viewed`;
+  return `${Math.round((n / book.pageCount) * 100)}% of ${book.format === 'epub' ? 'sections read' : 'pages viewed'}`;
 }
 
 export function ContinueCard({ book, progress }: { book: BookRecord; progress?: ReadingProgressRecord }) {
@@ -93,7 +94,7 @@ export function BookCard({
           <h3 className="line-clamp-2 text-sm font-semibold leading-snug">{book.title}</h3>
           {book.author && <p className="truncate text-xs text-muted">{book.author}</p>}
           <p className="mt-0.5 text-xs text-muted">
-            PDF · {formatBytes(book.fileSize)} · {book.pageCount} pp
+            {book.format === 'epub' ? `EPUB · ${formatBytes(book.fileSize)} · ${book.pageCount} sections` : `PDF · ${formatBytes(book.fileSize)} · ${book.pageCount} pp`}
           </p>
           <p className="text-xs text-muted">{positionText(book, progress)}</p>
           {viewed && (
@@ -129,15 +130,15 @@ export function BookCard({
               : { label: 'Mark as completed', onSelect: () => run(() => ProgressRepository.setCompleted(book.id, true), 'Marked as completed'), disabled: readOnly },
             { label: 'Reset progress…', onSelect: () => setDialog('reset'), disabled: readOnly },
             'sep',
-            { label: 'Download original PDF', onSelect: () => run(() => downloadOriginal(book)) },
             {
-              label: book.encrypted ? 'Annotated export unavailable (encrypted PDF)' : 'Export annotated PDF',
+              label: book.format === 'epub' ? 'Annotated export is for PDFs' : book.encrypted ? 'Annotated export unavailable (encrypted PDF)' : 'Export annotated PDF',
               onSelect: () => run(async () => {
                 const { marks } = await exportAnnotated(book);
                 toast({ kind: 'success', message: marks ? `Exported a copy with ${marks} marks.` : 'Exported a copy (this book has no marks yet).' });
               }),
-              disabled: book.encrypted,
+              disabled: book.encrypted || book.format === 'epub',
             },
+            { label: book.format === 'epub' ? 'Download original EPUB' : 'Download original PDF', onSelect: () => run(() => downloadOriginal(book)) },
             { label: 'Export book backup (.folio-backup)', onSelect: () => run(() => exportBookPackage(book.id), 'Book backup downloaded') },
             'sep',
             { label: 'Delete…', onSelect: () => setDialog('delete'), danger: true, disabled: readOnly },

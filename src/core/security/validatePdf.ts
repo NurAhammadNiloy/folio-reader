@@ -31,10 +31,8 @@ export function precheckFile(file: { name: string; size: number; type: string })
   if (file.size > LIMITS.maxPdfBytes)
     throw new ImportError(
       'too-large',
-      `“${file.name}” is ${formatMiB(file.size)}. Folio currently imports PDFs up to ${formatMiB(LIMITS.maxPdfBytes)}.`,
+      `“${file.name}” is ${formatMiB(file.size)}. Folio currently imports books up to ${formatMiB(LIMITS.maxPdfBytes)}.`,
     );
-  if (/\.epub$/i.test(file.name) || file.type === 'application/epub+zip')
-    throw new ImportError('unsupported-format', `“${file.name}” is an EPUB. Folio supports PDF files only for now.`);
 }
 
 /** PDF header must appear within the first 1024 bytes (as tolerated by common readers). */
@@ -55,7 +53,7 @@ export function hasPdfSignature(bytes: Uint8Array): boolean {
 
 export function assertPdfSignature(name: string, bytes: Uint8Array): void {
   if (!hasPdfSignature(bytes))
-    throw new ImportError('not-pdf', `“${name}” is not a PDF file. Choose a file that ends in .pdf and opens in a PDF viewer.`);
+    throw new ImportError('not-pdf', `“${name}” is not a PDF file. Folio opens PDF and EPUB files.`);
 }
 
 export function assertPageCount(name: string, pages: number): void {

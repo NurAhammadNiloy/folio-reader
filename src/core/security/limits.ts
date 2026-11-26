@@ -13,4 +13,6 @@ export const LIMITS = {
   zoomMin: 0.25,
   zoomMax: 4,
   undoLimit: 100,
+  epubMaxEntries: 5_000,
+  epubMaxExpandedBytes: 300 * MiB,
 } as const;

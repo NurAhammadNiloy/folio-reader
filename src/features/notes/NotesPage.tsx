@@ -114,10 +114,11 @@ export function NotesPage() {
           <ul className="divide-y divide-line rounded-[var(--radius-card)] border border-line bg-surface">
             {bookmarks!.map((b) => {
               const book = bookById.get(b.bookId);
-              if (!book || b.location.kind !== 'pdf') return null;
+              if (!book) return null;
+              const page = b.location.kind === 'pdf' ? b.location.pageIndex : b.location.spineIndex;
               return (
                 <li key={b.id}>
-                  <Link to={`/study/${b.bookId}?page=${b.location.pageIndex}`} className="flex min-h-11 items-center gap-3 px-4 py-2 hover:bg-surface-2">
+                  <Link to={`/study/${b.bookId}?page=${page}`} className="flex min-h-11 items-center gap-3 px-4 py-2 hover:bg-surface-2">
                     <Bookmark size={16} className="text-accent" aria-hidden />
                     <span className="flex-1">{b.label}</span>
                     <span className="text-xs text-muted">{book.title}</span>
