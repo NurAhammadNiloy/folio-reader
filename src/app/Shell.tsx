@@ -1,6 +1,6 @@
 import { NavLink, Outlet } from 'react-router-dom';
 import { BookOpen, NotebookPen, Settings, WifiOff, CheckCircle2 } from 'lucide-react';
-import { LeaseBanner, UpdateBanner } from './Banners';
+import { LeaseBanner, StorageBlockedBanner, UpdateBanner } from './Banners';
 import { useApp } from './appStore';
 import { cx } from '../components/ui';
 
@@ -34,6 +34,7 @@ export function Shell() {
       >
         Skip to content
       </a>
+      <StorageBlockedBanner />
       <UpdateBanner />
       <LeaseBanner />
       <div className="flex min-h-0 flex-1">

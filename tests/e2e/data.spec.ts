@@ -111,3 +111,19 @@ test('delete all data requires typed confirmation', async ({ page }) => {
   await page.reload();
   await expect(page.getByText('Your bookshelf is empty')).toBeVisible();
 });
+
+test('a library written by a newer schema is refused, not opened or downgraded', async ({ page }) => {
+  await page.addInitScript(() => {
+    if (sessionStorage.getItem('folio-test-newer')) return;
+    sessionStorage.setItem('folio-test-newer', '1');
+    const q = indexedDB.open('folio', 9999);
+    q.onupgradeneeded = () => q.result.createObjectStore('futureTable');
+    q.onsuccess = () => q.result.close();
+  });
+  await page.goto('/');
+  await expect(page.getByRole('alert').filter({ hasText: 'saved by a newer version of Folio' })).toBeVisible();
+  const version = await page.evaluate(
+    () => new Promise<number>((r) => { const q = indexedDB.open('folio'); q.onsuccess = () => { r(q.result.version); q.result.close(); }; }),
+  );
+  expect(version).toBe(9999);
+});

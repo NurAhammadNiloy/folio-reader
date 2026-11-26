@@ -5,6 +5,7 @@ import { getDb } from '../core/storage/db';
 import { useApp } from './appStore';
 import { applyTheme } from './theme';
 import { registerPwa } from '../features/pwa/registerPwa';
+import { NEWER_LIBRARY_MESSAGE } from './StorageBlockedScreen';
 
 export function bootstrap() {
   const app = useApp.getState();
@@ -19,8 +20,16 @@ export function bootstrap() {
       useApp.getState().setSettings(s);
       applyTheme(s);
     })
-    .catch(() => {
+    .catch((err: unknown) => {
       useApp.getState().setSettings(useApp.getState().settings);
+      if (err instanceof Error && (err.name === 'VersionError' || (err as { inner?: Error }).inner?.name === 'VersionError')) {
+        // A newer Folio wrote this library. Never open or downgrade it silently.
+        getDb().close();
+        useApp
+          .getState()
+          .setStorageBlocked(NEWER_LIBRARY_MESSAGE);
+        return;
+      }
       useApp.getState().toast({
         kind: 'error',
         message: 'Browser storage is unavailable. Private browsing or blocked site data can prevent Folio from saving books.',

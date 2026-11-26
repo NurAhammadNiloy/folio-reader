@@ -136,6 +136,14 @@ function textPage(doc, font, n, total, size = [595, 842]) {
   await save(doc, 'scanned.pdf');
 }
 
+// 3b. Representative 100-page text PDF for the first-visible-page benchmark.
+{
+  const doc = await newDoc('Folio Benchmark Text');
+  const font = await doc.embedFont(StandardFonts.TimesRoman);
+  for (let i = 1; i <= 100; i++) textPage(doc, font, i, 100);
+  await save(doc, 'text-100p.pdf');
+}
+
 // 4. Large: 500 pages.
 {
   const doc = await newDoc('Folio Large Fixture');

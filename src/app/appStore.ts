@@ -17,12 +17,15 @@ interface AppState {
   offlineReady: boolean;
   needRefresh: boolean;
   updateSW: ((reload?: boolean) => Promise<void>) | null;
+  /** Set when the stored library cannot be opened safely (e.g. a newer schema). */
+  storageBlocked: string | null;
   toasts: Toast[];
   setSettings: (s: AppSettings) => void;
   patchSettings: (p: Partial<AppSettings>) => void;
   setLease: (l: LeaseState) => void;
   setPendingWrites: (n: number) => void;
   setPwa: (p: Partial<Pick<AppState, 'offlineReady' | 'needRefresh' | 'updateSW'>>) => void;
+  setStorageBlocked: (m: string | null) => void;
   toast: (t: Omit<Toast, 'id'>) => void;
   dismissToast: (id: number) => void;
 }
@@ -37,12 +40,14 @@ export const useApp = create<AppState>((set) => ({
   offlineReady: false,
   needRefresh: false,
   updateSW: null,
+  storageBlocked: null,
   toasts: [],
   setSettings: (settings) => set({ settings, settingsLoaded: true }),
   patchSettings: (p) => set((s) => ({ settings: { ...s.settings, ...p } })),
   setLease: (lease) => set({ lease }),
   setPendingWrites: (pendingWrites) => set({ pendingWrites }),
   setPwa: (p) => set(p),
+  setStorageBlocked: (storageBlocked) => set({ storageBlocked }),
   toast: (t) => {
     const id = ++toastId;
     set((s) => ({ toasts: [...s.toasts.slice(-3), { ...t, id }] }));

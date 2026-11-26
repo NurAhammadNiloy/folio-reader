@@ -131,7 +131,7 @@ export function BookCard({
             'sep',
             { label: 'Download original PDF', onSelect: () => run(() => downloadOriginal(book)) },
             {
-              label: 'Export annotated PDF',
+              label: book.encrypted ? 'Annotated export unavailable (encrypted PDF)' : 'Export annotated PDF',
               onSelect: () => run(async () => {
                 const { marks } = await exportAnnotated(book);
                 toast({ kind: 'success', message: marks ? `Exported a copy with ${marks} marks.` : 'Exported a copy (this book has no marks yet).' });

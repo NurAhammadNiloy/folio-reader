@@ -2,6 +2,17 @@ import { useApp } from './appStore';
 import { Button } from '../components/ui';
 import { Lock, RefreshCw } from 'lucide-react';
 
+export function StorageBlockedBanner() {
+  const msg = useApp((s) => s.storageBlocked);
+  if (!msg) return null;
+  return (
+    <div role="alert" className="flex items-center gap-2 border-b border-line bg-accent-soft px-4 py-3 text-sm font-medium text-danger">
+      <Lock size={16} aria-hidden />
+      {msg}
+    </div>
+  );
+}
+
 export function LeaseBanner() {
   const lease = useApp((s) => s.lease);
   if (lease === 'owner' || lease === 'pending') return null;
