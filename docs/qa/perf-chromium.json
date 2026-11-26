@@ -1,11 +1,11 @@
 {
-  "measuredAt": "2026-11-26T16:39:11.385Z",
+  "measuredAt": "2026-11-26T16:49:18.482Z",
   "environment": "headless Chromium, cloud build container, 1366x768",
   "results": {
-    "firstVisiblePage100pMs": 467,
-    "firstVisiblePage500pMs": 246,
-    "jumpTo250Ms": 75,
-    "jumpTo500Ms": 124,
+    "firstVisiblePage100pMs": 346,
+    "firstVisiblePage500pMs": 276,
+    "jumpTo250Ms": 116,
+    "jumpTo500Ms": 54,
     "jumpTo1Ms": 33
   }
 }

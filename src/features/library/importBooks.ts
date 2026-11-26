@@ -14,6 +14,16 @@ export type ImportResult =
 
 export type PasswordAsk = (fileName: string, reason: 'required' | 'incorrect') => Promise<string | null>;
 
+/** A short, user-visible cause, so a device report says what actually failed. */
+export function describeError(err: unknown): string {
+  if (err instanceof Error) {
+    const msg = err.message.replace(/\s+/g, ' ').trim().slice(0, 160);
+    return `${err.name}${msg ? `: ${msg}` : ''}`;
+  }
+  if (err && typeof err === 'object' && 'name' in err) return String((err as { name: unknown }).name).slice(0, 80);
+  return String(err).slice(0, 160) || 'unknown error';
+}
+
 function titleFromFileName(name: string) {
   return name.replace(/\.(pdf|epub)$/i, '').replace(/[_]+/g, ' ').trim() || 'Untitled';
 }
@@ -47,7 +57,7 @@ export async function importPdf(file: File, askPassword: PasswordAsk): Promise<I
       opened = await openPdf(bytes, (reason) => askPassword(file.name, reason));
     } catch (err) {
       if (err instanceof PasswordCancelledError) return { status: 'cancelled' };
-      throw new ImportError('malformed', `“${file.name}” could not be opened. The file may be damaged or use features Folio cannot read.`, { cause: err });
+      throw new ImportError('malformed', `“${file.name}” could not be opened. The file may be damaged or use features Folio cannot read. (${describeError(err)})`, { cause: err });
     }
     try {
       assertPageCount(file.name, opened.numPages);
@@ -77,7 +87,8 @@ export async function importPdf(file: File, askPassword: PasswordAsk): Promise<I
       }
       return { status: 'error', code: err.code === 'read-only' ? 'read-only' : 'storage', message: err.message };
     }
-    return { status: 'error', code: 'malformed', message: `“${file.name}” could not be imported.` };
+    console.error('Import failed', err);
+    return { status: 'error', code: 'malformed', message: `“${file.name}” could not be imported. Reason: ${describeError(err)}` };
   } finally {
     end();
   }

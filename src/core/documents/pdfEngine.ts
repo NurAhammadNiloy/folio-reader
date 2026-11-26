@@ -11,7 +11,8 @@ import {
   type PDFPageProxy,
 } from 'pdfjs-dist';
 import type { PageViewport } from 'pdfjs-dist/types/src/display/page_viewport';
-import workerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
+// Legacy (polyfilled) worker: the modern one needs APIs iPadOS 17/18 lacks. See vite.config.ts.
+import workerUrl from 'pdfjs-dist/legacy/build/pdf.worker.min.mjs?url';
 
 GlobalWorkerOptions.workerSrc = workerUrl;
 
@@ -57,7 +58,20 @@ export async function openPdf(bytes: Uint8Array, getPassword?: PasswordProvider)
     stopAtErrors: false,
     isOffscreenCanvasSupported: true,
   });
+  // If the worker never answers (an engine/browser incompatibility), fail instead of
+  // leaving the import spinning forever. Paused while a password prompt is open.
+  let stalled = false;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const arm = () => {
+    clearTimeout(timer);
+    timer = setTimeout(() => {
+      stalled = true;
+      void task.destroy();
+    }, OPEN_TIMEOUT_MS);
+  };
+  arm();
   task.onPassword = (update: (pw: string) => void, reason: number) => {
+    clearTimeout(timer);
     encrypted = true;
     if (!getPassword) {
       cancelled = true;
@@ -69,7 +83,10 @@ export async function openPdf(bytes: Uint8Array, getPassword?: PasswordProvider)
       if (pw === null) {
         cancelled = true;
         void task.destroy();
-      } else update(pw);
+      } else {
+        arm();
+        update(pw);
+      }
     });
   };
   try {
@@ -82,9 +99,14 @@ export async function openPdf(bytes: Uint8Array, getPassword?: PasswordProvider)
     };
   } catch (err) {
     if (cancelled) throw new PasswordCancelledError();
+    if (stalled) throw new Error('The PDF engine did not respond in time.', { cause: err });
     throw err;
+  } finally {
+    clearTimeout(timer);
   }
 }
+
+const OPEN_TIMEOUT_MS = 90_000;
 
 export interface PageDescriptor {
   index: number;
