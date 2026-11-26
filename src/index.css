@@ -1,0 +1,265 @@
+@import 'tailwindcss';
+
+/* Folio design tokens (spec section 3). Themes switch CSS variables on <html>. */
+@theme {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-ink: var(--text);
+  --color-muted: var(--text-2);
+  --color-accent: var(--accent);
+  --color-accent-ink: var(--accent-ink);
+  --color-accent-soft: var(--accent-soft);
+  --color-paper: var(--paper);
+  --color-line: var(--border);
+  --color-danger: var(--danger);
+  --color-warn: var(--warn);
+  --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', 'Noto Sans', 'Noto Sans Bengali', 'Noto Sans Arabic', sans-serif;
+  --font-serif: 'Literata', 'Iowan Old Style', 'Charter', Georgia, 'Noto Serif', serif;
+  --radius-card: 14px;
+  --shadow-soft: 0 1px 2px rgb(0 0 0 / 0.06), 0 4px 16px rgb(0 0 0 / 0.06);
+  --shadow-book: 0 1px 1px rgb(0 0 0 / 0.08), 0 6px 18px rgb(32 37 34 / 0.14);
+}
+
+:root,
+[data-theme='light'] {
+  --bg: #f5f3ee;
+  --surface: #ffffff;
+  --surface-2: #eeece6;
+  --text: #202522;
+  --text-2: #5c645f; /* darkened from #626A65 to keep 4.5:1 on --surface-2 */
+  --accent: #416c57;
+  --accent-ink: #ffffff;
+  --accent-soft: #e3ece6;
+  --paper: #fffcf5;
+  --border: #dcddd6;
+  --danger: #a3362b;
+  --warn: #8a5a00;
+  --reader-bg: #e9e6de;
+  color-scheme: light;
+}
+[data-theme='sepia'] {
+  --bg: #efe5cf;
+  --surface: #f8f0dd;
+  --surface-2: #e8dcc0;
+  --text: #2e261a;
+  --text-2: #5e5240;
+  --accent: #3f6a55;
+  --accent-ink: #ffffff;
+  --accent-soft: #e2e2c8;
+  --paper: #fffcf5;
+  --border: #d6c8a8;
+  --danger: #9b3328;
+  --warn: #7a4f00;
+  --reader-bg: #ede0c5;
+  color-scheme: light;
+}
+[data-theme='dark'] {
+  --bg: #161819;
+  --surface: #222526;
+  --surface-2: #2b2f30;
+  --text: #f3f3ee;
+  --text-2: #aeb7b0;
+  --accent: #9cc6a9;
+  --accent-ink: #12251b;
+  --accent-soft: #2c3a32;
+  --paper: #222526;
+  --border: #3a403d;
+  --danger: #f08d80;
+  --warn: #e6b85c;
+  --reader-bg: #111314;
+  color-scheme: dark;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior: none;
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+.reduce-motion *,
+.reduce-motion *::before,
+.reduce-motion *::after {
+  animation-duration: 0.001ms !important;
+  transition-duration: 0.001ms !important;
+  scroll-behavior: auto !important;
+}
+
+.safe-pb {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+.safe-pt {
+  padding-top: env(safe-area-inset-top);
+}
+
+dialog::backdrop {
+  background: rgb(10 12 11 / 0.45);
+}
+dialog {
+  color: var(--text);
+}
+
+/* Visually hidden but available to screen readers */
+.sr-only-focusable:not(:focus) {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+}
+
+/* Book page in the reader */
+.folio-page {
+  position: relative;
+  background: #fff;
+  box-shadow: var(--shadow-book);
+  flex: none;
+}
+.folio-page > canvas.page-canvas {
+  position: absolute;
+  inset: 0;
+  display: block;
+}
+.folio-page .ink-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+}
+.folio-page.mode-read .ink-layer {
+  pointer-events: none;
+}
+.folio-page.mode-draw .ink-layer,
+.folio-page.mode-erase .ink-layer {
+  touch-action: none;
+  cursor: crosshair;
+}
+.folio-page.mode-draw .textLayer,
+.folio-page.mode-erase .textLayer {
+  pointer-events: none;
+  user-select: none;
+}
+
+@keyframes page-in {
+  from {
+    opacity: 0.4;
+    transform: translateX(var(--turn-from, 12px));
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.page-turn {
+  animation: page-in 180ms ease-out;
+}
+
+/* --- PDF.js text layer (adapted from pdfjs-dist/web/pdf_viewer.css, Apache-2.0) --- */
+.textLayer {
+  position: absolute;
+  text-align: initial;
+  inset: 0;
+  overflow: clip;
+  opacity: 1;
+  line-height: 1;
+  letter-spacing: normal;
+  word-spacing: normal;
+  -webkit-text-size-adjust: none;
+  text-size-adjust: none;
+  forced-color-adjust: none;
+  transform-origin: 0 0;
+  caret-color: CanvasText;
+  z-index: 1;
+  --scale-round-x: 1px;
+  --scale-round-y: 1px;
+  --min-font-size: 1;
+  --text-scale-factor: calc(var(--total-scale-factor) * var(--min-font-size));
+  --min-font-size-inv: calc(1 / var(--min-font-size));
+}
+.textLayer :is(span, br) {
+  color: transparent;
+  position: absolute;
+  white-space: pre;
+  cursor: text;
+  transform-origin: 0% 0%;
+  user-select: text;
+}
+.textLayer > :not(.markedContent),
+.textLayer .markedContent span:not(.markedContent) {
+  z-index: 1;
+  --font-height: 0;
+  font-size: calc(var(--text-scale-factor) * var(--font-height));
+  --scale-x: 1;
+  --rotate: 0deg;
+  transform: rotate(var(--rotate)) scaleX(var(--scale-x)) scale(var(--min-font-size-inv));
+}
+.textLayer .markedContent {
+  display: contents;
+}
+.textLayer span[role='img'] {
+  user-select: none;
+  cursor: default;
+}
+.textLayer ::selection {
+  background: rgb(65 108 87 / 0.3);
+  color: transparent;
+}
+.textLayer br::selection {
+  background: transparent;
+}
+.textLayer .endOfContent {
+  display: block;
+  position: absolute;
+  inset: 100% 0 0;
+  z-index: 0;
+  cursor: default;
+  user-select: none;
+}
+.textLayer.selecting .endOfContent {
+  top: 0;
+}
+.textLayer mark.folio-hit {
+  color: transparent;
+  background: rgb(240 190 40 / 0.45);
+  border-radius: 2px;
+}
+.textLayer mark.folio-hit.active {
+  background: rgb(65 108 87 / 0.5);
+  outline: 2px solid rgb(65 108 87 / 0.9);
+}
+[data-main-rotation='90'] {
+  transform: rotate(90deg) translateY(-100%);
+}
+[data-main-rotation='180'] {
+  transform: rotate(180deg) translate(-100%, -100%);
+}
+[data-main-rotation='270'] {
+  transform: rotate(270deg) translateX(-100%);
+}
+
+/* Notebook templates */
+.nb-ruled {
+  background-image: repeating-linear-gradient(to bottom, transparent 0, transparent calc(var(--u) * 27.5), rgb(120 140 170 / 0.35) calc(var(--u) * 27.5), rgb(120 140 170 / 0.35) calc(var(--u) * 28));
+  background-position: 0 calc(var(--u) * 60);
+}
+.nb-grid {
+  background-image: linear-gradient(rgb(120 140 170 / 0.25) 1px, transparent 1px), linear-gradient(90deg, rgb(120 140 170 / 0.25) 1px, transparent 1px);
+  background-size: calc(var(--u) * 20) calc(var(--u) * 20);
+}
+.nb-dotted {
+  background-image: radial-gradient(rgb(110 120 130 / 0.5) 1px, transparent 1.2px);
+  background-size: calc(var(--u) * 20) calc(var(--u) * 20);
+}

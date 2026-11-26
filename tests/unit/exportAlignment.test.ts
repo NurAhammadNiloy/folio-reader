@@ -30,7 +30,7 @@ function readPpm(path: string) {
   pos++;
   const [magic, w, h] = [tokens[0], Number(tokens[1]), Number(tokens[2])];
   if (magic !== 'P6') throw new Error('expected P6');
-  return { w, h, px: (x: number, y: number) => [buf[pos + (y * w + x) * 3]!, buf[pos + (y * w + x) * 3 + 1]!, buf[pos + (y * w + x) * 3 + 2]!] };
+  return { w, h, px: (x: number, y: number): [number, number, number] => [buf[pos + (y * w + x) * 3]!, buf[pos + (y * w + x) * 3 + 1]!, buf[pos + (y * w + x) * 3 + 2]!] };
 }
 
 const runIf = hasBinary('pdftoppm') ? it : it.skip;
